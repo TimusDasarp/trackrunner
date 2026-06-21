@@ -1,0 +1,63 @@
+# TrackRunner — one-shot demo stack
+# Usage:
+#   docker compose up -d
+#   docker compose exec backend npm run migrate
+#   docker compose exec backend npm run seed
+#
+# Then point the Android app at http://<host-ip>:3000 and the dashboard at
+# http://localhost:5173 (run `npm run dev` inside ./dashboard).
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: trackrunner-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: trackrunner-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: trackrunner
+      POSTGRES_PASSWORD: trackrunner
+      POSTGRES_DB: trackrunner
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trackrunner -d trackrunner"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: trackrunner-backend
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: "3000"
+      JWT_SECRET: "change-me-in-production"
+      REDIS_URL: "redis://redis:6379"
+      DATABASE_URL: "postgres://trackrunner:trackrunner@postgres:5432/trackrunner"
+      FLUSH_INTERVAL_MS: "10000"
+      CORS_ORIGIN: "*"
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres-data:

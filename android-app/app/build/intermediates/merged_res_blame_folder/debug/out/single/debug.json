@@ -1,0 +1,30 @@
+[
+    {
+        "merged": "com.trackrunner.courier.app-merged_res-41:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.trackrunner.courier.app-main-43:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "com.trackrunner.courier.app-merged_res-41:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.trackrunner.courier.app-main-43:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "com.trackrunner.courier.app-merged_res-41:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.trackrunner.courier.app-main-43:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.trackrunner.courier.app-merged_res-41:/xml_backup_rules.xml.flat",
+        "source": "com.trackrunner.courier.app-main-43:/xml/backup_rules.xml"
+    },
+    {
+        "merged": "com.trackrunner.courier.app-merged_res-41:/layout_activity_main.xml.flat",
+        "source": "com.trackrunner.courier.app-main-43:/layout/activity_main.xml"
+    },
+    {
+        "merged": "com.trackrunner.courier.app-merged_res-41:/xml_data_extraction_rules.xml.flat",
+        "source": "com.trackrunner.courier.app-main-43:/xml/data_extraction_rules.xml"
+    },
+    {
+        "merged": "com.trackrunner.courier.app-merged_res-41:/layout_activity_login.xml.flat",
+        "source": "com.trackrunner.courier.app-main-43:/layout/activity_login.xml"
+    }
+]
