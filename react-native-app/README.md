@@ -16,3 +16,13 @@ The first device test should be performed while the dispatcher dashboard is open
 - Do not add passwords, Supabase service keys, or the database URL to an `EXPO_PUBLIC_*` variable. Those values are included in the built app.
 - Before an internal build, create/link the project in **your** Expo account using `eas init`; the previous inherited EAS project link was intentionally removed.
 - The identifiers in `app.json` (`com.trackrunner.app`) must be available in Apple and Google developer accounts before store release.
+
+## Android APK for direct testing
+
+Use the EAS `preview` profile for an installable Android APK rather than Expo Go:
+
+```bash
+npx eas-cli@latest build --platform android --profile preview
+```
+
+The build is uploaded to Expo, then the resulting link can be opened on an Android device to download and install the APK. Android may ask you to allow installs from the browser used to open that link. This is for internal testing only, not Play Store distribution.
