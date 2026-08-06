@@ -19,7 +19,7 @@ apiRouter.post("/auth/login", async (req, res) => {
 
   const { email, password } = parsed.data;
   const { rows } = await pool.query(
-    "SELECT id, email, password_hash, role, display_name FROM users WHERE email = $1",
+    "SELECT id, email, password_hash, role, display_name, organization_id FROM users WHERE email = $1",
     [email]
   );
   if (rows.length === 0) return res.status(401).json({ error: "invalid credentials" });
@@ -29,7 +29,7 @@ apiRouter.post("/auth/login", async (req, res) => {
   if (!ok) return res.status(401).json({ error: "invalid credentials" });
 
   const token = jwt.sign(
-    { sub: String(user.id), role: user.role, email: user.email },
+    { sub: String(user.id), role: user.role, email: user.email, organizationId: String(user.organization_id) },
     config.jwtSecret,
     { expiresIn: config.jwtExpiresIn as any }
   );
@@ -41,6 +41,7 @@ apiRouter.post("/auth/login", async (req, res) => {
       email: user.email,
       role: user.role,
       displayName: user.display_name,
+      organizationId: String(user.organization_id),
     },
   });
 });
@@ -55,7 +56,9 @@ function requireDispatcher(req: any, res: any, next: any) {
   if (!auth?.startsWith("Bearer ")) return res.status(401).json({ error: "missing token" });
   try {
     const claims: any = jwt.verify(auth.slice(7), config.jwtSecret);
-    if (claims.role !== "dispatcher") return res.status(403).json({ error: "forbidden" });
+    if (claims.role !== "dispatcher" || !claims.organizationId) {
+      return res.status(403).json({ error: "forbidden" });
+    }
     req.user = claims;
     next();
   } catch {
@@ -63,10 +66,18 @@ function requireDispatcher(req: any, res: any, next: any) {
   }
 }
 
-apiRouter.get("/runners", requireDispatcher, async (_req, res) => {
+apiRouter.get("/runners", requireDispatcher, async (_req: any, res) => {
+  const { rows: assignments } = await pool.query(
+    `SELECT runner_id FROM runner_assignments
+     WHERE dispatcher_id = $1 AND organization_id = $2 AND active = true`,
+    [_req.user.sub, _req.user.organizationId]
+  );
+  const assignedRunnerIds = new Set(assignments.map((assignment) => String(assignment.runner_id)));
   const states = await getAllRunnerStates();
   const online = new Set(await getOnlineRunners());
-  const runners = Object.entries(states).map(([id, s]: [string, any]) => ({
+  const runners = Object.entries(states).filter(([, s]: [string, any]) =>
+    String(s.organizationId) === String(_req.user.organizationId) && assignedRunnerIds.has(String(s.runnerId))
+  ).map(([id, s]: [string, any]) => ({
     runnerId: id,
     lat: Number(s.lat),
     lon: Number(s.lon),
@@ -80,16 +91,22 @@ apiRouter.get("/runners", requireDispatcher, async (_req, res) => {
   res.json({ runners });
 });
 
-apiRouter.get("/runners/:id/history", requireDispatcher, async (req, res) => {
+apiRouter.get("/runners/:id/history", requireDispatcher, async (req: any, res) => {
   const id = req.params.id;
   const limit = Math.min(Number(req.query.limit ?? 500), 5000);
   const { rows } = await pool.query(
-    `SELECT lat, lon, accuracy, speed, bearing, altitude, battery, ts
-     FROM location_history
-     WHERE runner_id = $1
+    `SELECT h.lat, h.lon, h.accuracy, h.speed, h.bearing, h.altitude, h.battery, h.ts
+     FROM location_history h
+     JOIN users runner ON runner.id = h.runner_id
+     JOIN runner_assignments assignment
+       ON assignment.runner_id = runner.id
+      AND assignment.dispatcher_id = $3
+      AND assignment.organization_id = runner.organization_id
+      AND assignment.active = true
+     WHERE h.runner_id = $1 AND runner.organization_id = $2
      ORDER BY ts DESC
-     LIMIT $2`,
-    [id, limit]
+     LIMIT $4`,
+    [id, req.user.organizationId, req.user.sub, limit]
   );
   res.json({ runnerId: id, points: rows.reverse() });
 });

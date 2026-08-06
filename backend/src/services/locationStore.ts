@@ -1,14 +1,44 @@
 import { redis, K } from "./redis";
 import type { LocationPayload } from "./schemas";
+import { pool } from "../db/pool";
+
+export async function persistLocations(points: LocationPayload[]): Promise<string[]> {
+  if (points.length === 0) return [];
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    for (const point of points) {
+      await client.query(
+        `INSERT INTO location_history
+          (runner_id, lat, lon, accuracy, speed, bearing, altitude, battery, event_id, ts)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         ON CONFLICT (runner_id, event_id) WHERE event_id IS NOT NULL DO NOTHING`,
+        [
+          Number(point.runnerId), point.lat, point.lon, point.accuracy ?? null,
+          point.speed ?? null, point.bearing ?? null, point.altitude ?? null,
+          point.battery ?? null, point.eventId, point.ts,
+        ]
+      );
+    }
+    await client.query("COMMIT");
+    return points.map((point) => point.eventId);
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
 
 /**
  * Persist a single location update to Redis.
  * Uses a hash so dashboards can fetch the latest state in one round-trip.
  */
-export async function saveLocation(p: LocationPayload): Promise<void> {
+export async function saveLocation(p: LocationPayload, organizationId: string): Promise<void> {
   const key = K.state(p.runnerId);
   const fields: Record<string, string> = {
     runnerId: String(p.runnerId),
+    organizationId,
     lat: String(p.lat),
     lon: String(p.lon),
     ts: String(p.ts),

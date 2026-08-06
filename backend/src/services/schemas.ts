@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const LocationPayloadSchema = z.object({
+  eventId: z.string().min(16).max(128),
   runnerId: z.union([z.string(), z.number()]).transform(String),
   lat: z.number().gte(-90).lte(90),
   lon: z.number().gte(-180).lte(180),

@@ -3,8 +3,11 @@ import { redis, K } from "../services/redis";
 import { config } from "../config";
 
 /**
- * Periodically flush the latest location per runner from Redis into Postgres
- * for historical / audit purposes. Runs every FLUSH_INTERVAL_MS.
+ * Legacy Redis snapshot persistence worker.
+ *
+ * Do not start this worker in production: accepted location events are now
+ * written directly and idempotently by the Socket.IO ingestion path. Keeping
+ * this code temporarily helps existing deployments transition safely.
  */
 export function startPersistenceWorker() {
   const tick = async () => {
@@ -65,7 +68,9 @@ export function startPersistenceWorker() {
     }
   };
 
-  setInterval(tick, config.flushIntervalMs);
+  const interval = setInterval(tick, config.flushIntervalMs);
   // eslint-disable-next-line no-console
   console.log(`[worker] persistence flush every ${config.flushIntervalMs}ms`);
+
+  return () => clearInterval(interval);
 }
