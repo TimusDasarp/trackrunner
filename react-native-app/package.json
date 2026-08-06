@@ -7,6 +7,7 @@
     "@react-navigation/native-stack": "^7.17.5",
     "expo": "~55.0.28",
     "expo-battery": "~55.0.15",
+    "expo-build-properties": "~55.0.16",
     "expo-crypto": "~55.0.17",
     "expo-location": "~55.1.12",
     "expo-notifications": "~55.0.25",
@@ -27,8 +28,14 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
-    "babel-preset-expo": "^57.0.6",
+    "babel-preset-expo": "~55.0.8",
     "typescript": "~5.9.2"
+  },
+  "resolutions": {
+    "hermes-compiler": "250829098.0.4"
+  },
+  "overrides": {
+    "hermes-compiler": "250829098.0.4"
   },
   "scripts": {
     "start": "expo start",
