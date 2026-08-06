@@ -66,6 +66,11 @@
         }
       ]
     ],
-    "extra": {}
+    "extra": {
+      "eas": {
+        "projectId": "25daebd0-c323-4978-a129-18c46023e9cd"
+      }
+    },
+    "owner": "timusdasarp"
   }
 }
