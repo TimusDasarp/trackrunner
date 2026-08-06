@@ -14,4 +14,6 @@ COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/dist ./dist
 EXPOSE 3000
-CMD ["node", "dist/server.js"]
+# Staging bootstrap: schema creation and demo users are idempotent, so they can
+# safely run whenever the free instance wakes or is redeployed.
+CMD ["sh", "-c", "node dist/db/migrate.js && node dist/db/seed.js && node dist/server.js"]
