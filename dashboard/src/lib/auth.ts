@@ -22,7 +22,7 @@ export function getUser(): any | null {
 
 export async function api<T = any>(path: string, opts: RequestInit = {}): Promise<T> {
   const token = getToken();
-  const res = await fetch(path, {
+  const res = await fetch(apiUrl(path), {
     ...opts,
     headers: {
       "Content-Type": "application/json",
@@ -36,3 +36,4 @@ export async function api<T = any>(path: string, opts: RequestInit = {}): Promis
   }
   return res.json();
 }
+import { apiUrl } from "./config";

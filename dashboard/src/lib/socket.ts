@@ -1,5 +1,6 @@
 import { io, Socket } from "socket.io-client";
 import { getToken } from "./auth";
+import { apiBaseUrl } from "./config";
 import type { LocationUpdate } from "./types";
 
 let socket: Socket | null = null;
@@ -11,7 +12,7 @@ export function getSocket(): Socket {
     socket = null;
   }
   const token = getToken();
-  socket = io({
+  socket = io(apiBaseUrl || undefined, {
     path: "/socket.io",
     transports: ["websocket", "polling"],
     auth: { token },
