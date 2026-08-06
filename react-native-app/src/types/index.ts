@@ -1,0 +1,46 @@
+/**
+ * Type definitions for the app
+ */
+
+export interface User {
+  id: string;
+  email: string;
+  role: 'runner' | 'dispatcher' | 'admin';
+  displayName?: string | null;
+  organizationId: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: User;
+}
+
+export interface LocationPoint {
+  eventId?: string;
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  altitude?: number;
+  heading?: number;
+  speed?: number;
+  timestamp: number;
+  batteryLevel?: number;
+}
+
+export interface CachedLocation extends LocationPoint {
+  id?: number;
+  synced: boolean;
+  createdAt: number;
+}
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface TrackingState {
+  isTracking: boolean;
+  isAuthenticated: boolean;
+  lastLocation: LocationPoint | null;
+  pendingCount: number;
+}
