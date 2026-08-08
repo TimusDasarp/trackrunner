@@ -5,6 +5,7 @@ import { pool } from "../db/pool";
 import {
   LocationPayloadSchema,
   LocationBatchSchema,
+  TrackingStatusSchema,
   type LocationPayload,
 } from "../services/schemas";
 import {
@@ -12,6 +13,7 @@ import {
   persistLocations,
   markOnline,
   markOffline,
+  setTrackingActive,
 } from "../services/locationStore";
 
 interface AuthedSocket extends Socket {
@@ -76,6 +78,24 @@ export function attachSockets(io: Server) {
       // eslint-disable-next-line no-console
       console.log(`[ws] dispatcher connected user=${userId} sid=${s.id}`);
     }
+
+    // --- Runner -> Server: single location ---
+    s.on("runner:tracking", async (raw: unknown, ack?: (result: unknown) => void) => {
+      if (role !== "runner") return;
+      const parsed = TrackingStatusSchema.safeParse(raw);
+      if (!parsed.success) return ack?.({ ok: false, error: "bad-payload" });
+      try {
+        await setTrackingActive(userId, parsed.data.active);
+        io.to(`dispatchers:${organizationId}:runner:${userId}`).emit("runner:status", {
+          runnerId: userId,
+          trackingActive: parsed.data.active,
+        });
+        ack?.({ ok: true });
+      } catch (err) {
+        console.error("[ws] tracking status failed:", err);
+        ack?.({ ok: false, error: "persistence-failed" });
+      }
+    });
 
     // --- Runner -> Server: single location ---
     s.on("runner:location", async (raw: unknown, ack?: (result: unknown) => void) => {

@@ -22,6 +22,8 @@ export interface RunnerState {
   displayName: string;
   email: string;
   online: boolean;
+  trackingActive: boolean;
+  status: RunnerStatus;
   hasLocation: boolean;
   lat?: number;
   lon?: number;
@@ -31,4 +33,16 @@ export interface RunnerState {
   altitude?: number | null;
   battery?: number | null;
   ts?: number;
+}
+
+export type RunnerStatus = "live" | "stale" | "idle" | "offline";
+
+const FRESH_LOCATION_WINDOW_MS = 90_000;
+
+/** A socket connection alone is not a live tracking signal. */
+export function getRunnerStatus(runner: RunnerState, now = Date.now()): RunnerStatus {
+  if (runner.trackingActive) {
+    return runner.ts && now - runner.ts <= FRESH_LOCATION_WINDOW_MS ? "live" : "stale";
+  }
+  return runner.online ? "idle" : "offline";
 }

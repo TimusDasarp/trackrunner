@@ -26,6 +26,11 @@ interface LocationAck {
   error?: string;
 }
 
+interface TrackingStatusAck {
+  ok: boolean;
+  error?: string;
+}
+
 type SocketConnectionListener = (connected: boolean) => void;
 
 class SocketClient {
@@ -34,6 +39,7 @@ class SocketClient {
   private runnerId: string | null = null;
   private listeners = new Set<SocketConnectionListener>();
   private connectionPromise: Promise<void> | null = null;
+  private trackingActive: boolean | null = null;
 
   async connect(): Promise<void> {
     if (this.socket?.connected) return;
@@ -69,6 +75,11 @@ class SocketClient {
         console.log('[Socket] Connected via', socket.io.engine.transport.name);
         this.connected = true;
         this.notifyListeners();
+        if (this.trackingActive !== null) {
+          this.emitTrackingStatus(this.trackingActive).catch((err) => {
+            console.warn('[Socket] Could not restore tracking status:', err);
+          });
+        }
         clearTimeout(timeout);
         resolve();
       });
@@ -107,6 +118,20 @@ class SocketClient {
 
   isConnected(): boolean {
     return this.connected;
+  }
+
+  async setTrackingActive(active: boolean): Promise<void> {
+    this.trackingActive = active;
+    if (!this.socket?.connected) return;
+    await this.emitTrackingStatus(active);
+  }
+
+  private async emitTrackingStatus(active: boolean): Promise<void> {
+    if (!this.socket?.connected) return;
+    const response = await this.socket
+      .timeout(10_000)
+      .emitWithAck('runner:tracking', { active }) as TrackingStatusAck;
+    if (!response?.ok) throw new Error(response?.error ?? 'Tracking status was not accepted');
   }
 
   addConnectionListener(listener: SocketConnectionListener): void {

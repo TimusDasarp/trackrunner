@@ -43,6 +43,10 @@ export async function saveLocation(p: LocationPayload, organizationId: string): 
     lon: String(p.lon),
     ts: String(p.ts),
     updatedAt: String(Date.now()),
+    // Receiving a location is definitive evidence that tracking is active.
+    // This also keeps dashboard status accurate for a runner using an older
+    // app version that does not yet send explicit tracking-status events.
+    trackingActive: "true",
   };
   if (p.accuracy != null) fields.accuracy = String(p.accuracy);
   if (p.speed != null) fields.speed = String(p.speed);
@@ -82,6 +86,19 @@ export async function getAllRunnerStates(): Promise<Record<string, any>> {
 export async function markOnline(runnerId: string) {
   await redis.sadd(K.online, runnerId);
   await redis.sadd(K.all, runnerId);
+}
+
+/** Store tracking intent separately from the socket connection state. */
+export async function setTrackingActive(runnerId: string, active: boolean) {
+  await redis
+    .multi()
+    .hset(K.state(runnerId), {
+      runnerId,
+      trackingActive: String(active),
+      trackingUpdatedAt: String(Date.now()),
+    })
+    .sadd(K.all, runnerId)
+    .exec();
 }
 
 export async function markOffline(runnerId: string) {

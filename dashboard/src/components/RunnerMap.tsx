@@ -1,12 +1,12 @@
 import { useMemo } from "react";
 import L from "leaflet";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
-import type { RunnerState } from "../lib/types";
+import { getRunnerStatus, type RunnerState } from "../lib/types";
 
 function makeIcon(state: RunnerState, selected: boolean) {
   const battery = state.battery ?? null;
   let cls = "dot";
-  if (!state.online) cls += " offline";
+  if (getRunnerStatus(state) !== "live") cls += " offline";
   else cls += " online";
   if (battery != null && battery < 15) cls += " critical";
   else if (battery != null && battery < 30) cls += " low";
@@ -35,7 +35,7 @@ interface Props {
 
 export default function RunnerMap({ runners, selectedId, trail }: Props) {
   const initialCenter = useMemo<[number, number]>(() => {
-    const list = Object.values(runners).filter((runner) => runner.hasLocation);
+    const list = Object.values(runners).filter((runner) => runner.hasLocation && getRunnerStatus(runner) === "live");
     if (list.length > 0) return [list[0].lat!, list[0].lon!];
     return [37.7749, -122.4194]; // San Francisco fallback
   }, [runners]);
@@ -53,7 +53,7 @@ export default function RunnerMap({ runners, selectedId, trail }: Props) {
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      {Object.values(runners).filter((r) => r.hasLocation).map((r) => (
+      {Object.values(runners).filter((r) => r.hasLocation && getRunnerStatus(r) === "live").map((r) => (
         <Marker
           key={r.runnerId}
           position={[r.lat!, r.lon!]}
@@ -64,7 +64,7 @@ export default function RunnerMap({ runners, selectedId, trail }: Props) {
               <div className="font-semibold">{r.displayName}</div>
               <div>Battery: {r.battery != null ? `${Math.round(r.battery)}%` : "—"}</div>
               <div>Speed: {r.speed != null ? `${r.speed.toFixed(1)} m/s` : "—"}</div>
-              <div>Status: {r.online ? "online" : "offline"}</div>
+              <div>Status: Live tracking</div>
               <div className="text-xs text-slate-500">
                 {new Date(r.ts!).toLocaleTimeString()}
               </div>

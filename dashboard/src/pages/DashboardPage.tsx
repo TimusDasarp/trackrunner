@@ -7,7 +7,7 @@ import RunnerMap from "../components/RunnerMap";
 import RunnerList from "../components/RunnerList";
 import RunnerDetail from "../components/RunnerDetail";
 import { api } from "../lib/auth";
-import type { RunnerState } from "../lib/types";
+import { getRunnerStatus, type RunnerState } from "../lib/types";
 
 type RunnerForm = { email: string; password: string; displayName: string };
 
@@ -23,13 +23,6 @@ export default function DashboardPage() {
   const [form, setForm] = useState<RunnerForm>(emptyRunnerForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [formBusy, setFormBusy] = useState(false);
-
-  // Auto-select first runner
-  useEffect(() => {
-    if (!selectedId && Object.keys(runners).length > 0) {
-      setSelectedId(Object.keys(runners)[0]);
-    }
-  }, [runners, selectedId]);
 
   // Load history when selection changes
   useEffect(() => {
@@ -62,10 +55,19 @@ export default function DashboardPage() {
     });
   }, [selected]);
 
-  const onlineCount = useMemo(
-    () => Object.values(runners).filter((r) => r.online).length,
-    [runners]
-  );
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const statusCounts = useMemo(() => Object.values(runners).reduce(
+    (counts, runner) => {
+      counts[getRunnerStatus(runner, now)] += 1;
+      return counts;
+    },
+    { live: 0, stale: 0, idle: 0, offline: 0 } as Record<"live" | "stale" | "idle" | "offline", number>
+  ), [runners, now]);
 
   function logout() {
     clearSession();
@@ -114,7 +116,7 @@ export default function DashboardPage() {
           <div className="w-2 h-2 rounded-full bg-accent" />
           <h1 className="font-semibold">TrackRunner</h1>
           <span className="text-xs text-slate-500">
-            {connected ? "live" : "disconnected"} · {onlineCount} online
+            {connected ? "dashboard connected" : "dashboard reconnecting"} · {statusCounts.live} live · {statusCounts.stale} stale · {statusCounts.idle} idle
           </span>
         </div>
         <div className="flex items-center gap-4">
@@ -135,16 +137,15 @@ export default function DashboardPage() {
           />
         </aside>
 
-        <section className="order-2 md:col-span-8 lg:col-span-6 bg-panel rounded-2xl border border-slate-800 overflow-hidden min-h-[360px] md:min-h-0">
-          <RunnerMap runners={runners} selectedId={selectedId} trail={trail} />
-        </section>
-
-        <aside className="order-3 md:col-span-12 lg:col-span-3 bg-panel rounded-2xl border border-slate-800 overflow-hidden">
-          <div className="px-4 py-2 border-b border-slate-800 text-sm font-semibold">
-            Details
+        <section className="order-2 md:col-span-8 lg:col-span-9 bg-panel rounded-2xl border border-slate-800 overflow-hidden min-h-[520px] flex flex-col">
+          <div className="border-b border-slate-800 shrink-0">
+            <div className="px-4 py-2 text-sm font-semibold">Details</div>
+            <RunnerDetail runner={selected} trail={trail} onRename={openRename} />
           </div>
-          <RunnerDetail runner={selected} trail={trail} onRename={openRename} />
-        </aside>
+          <div className="min-h-[360px] flex-1">
+            <RunnerMap runners={runners} selectedId={selectedId} trail={trail} />
+          </div>
+        </section>
       </main>
 
       {formMode && (

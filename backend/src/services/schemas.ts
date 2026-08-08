@@ -16,3 +16,7 @@ export const LocationPayloadSchema = z.object({
 export type LocationPayload = z.infer<typeof LocationPayloadSchema>;
 
 export const LocationBatchSchema = z.array(LocationPayloadSchema).min(1).max(1000);
+
+export const TrackingStatusSchema = z.object({
+  active: z.boolean(),
+});

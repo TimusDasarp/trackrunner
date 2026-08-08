@@ -35,6 +35,7 @@ export function useTracking() {
   async function checkStatus() {
     const tracking = await LocationTracking.isTracking();
     setIsTracking(tracking);
+    await socketClient.setTrackingActive(tracking);
     setIsConnected(socketClient.isConnected());
     await refreshPendingCount();
   }

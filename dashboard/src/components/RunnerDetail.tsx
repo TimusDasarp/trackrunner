@@ -1,4 +1,4 @@
-import type { RunnerState } from "../lib/types";
+import { getRunnerStatus, type RunnerState, type RunnerStatus } from "../lib/types";
 
 interface Props {
   runner: RunnerState | null;
@@ -9,7 +9,10 @@ interface Props {
 export default function RunnerDetail({ runner, trail, onRename }: Props) {
   if (!runner) {
     return (
-      <div className="text-slate-500 text-sm p-4">Select a runner to see details.</div>
+      <div className="px-5 py-4">
+        <div className="font-medium text-slate-200">Select a runner to view their live data</div>
+        <p className="mt-1 text-sm text-slate-500">Choose an active runner from the left to see their current location, recent route, and device details.</p>
+      </div>
     );
   }
 
@@ -22,13 +25,7 @@ export default function RunnerDetail({ runner, trail, onRename }: Props) {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button onClick={() => onRename(runner)} className="text-xs text-accent hover:underline">Edit</button>
-          <span
-            className={`text-xs px-2 py-0.5 rounded-full ${
-              runner.online ? "bg-emerald-900 text-emerald-300" : "bg-slate-800 text-slate-400"
-            }`}
-          >
-            {runner.online ? "online" : "offline"}
-          </span>
+          <StatusBadge status={getRunnerStatus(runner)} />
         </div>
       </div>
 
@@ -49,6 +46,16 @@ export default function RunnerDetail({ runner, trail, onRename }: Props) {
       </div>
     </div>
   );
+}
+
+function StatusBadge({ status }: { status: RunnerStatus }) {
+  const styles: Record<RunnerStatus, string> = {
+    live: "bg-emerald-950 text-emerald-300",
+    stale: "bg-amber-950 text-amber-300",
+    idle: "bg-sky-950 text-sky-300",
+    offline: "bg-slate-800 text-slate-400",
+  };
+  return <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${styles[status]}`}>{status}</span>;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

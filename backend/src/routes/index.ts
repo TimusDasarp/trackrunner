@@ -96,11 +96,20 @@ apiRouter.get("/runners", requireDispatcher, async (_req: any, res) => {
   );
   const states = await getAllRunnerStates();
   const online = new Set(await getOnlineRunners());
+  const now = Date.now();
+  const freshnessWindowMs = 90_000;
   const runners = [...assignedRunners.entries()].map(([runnerId, runner]) => {
     const state: any = states[runnerId];
     if (!state || String(state.organizationId) !== String(_req.user.organizationId)) {
-      return { runnerId, displayName: runner.display_name, email: runner.email, online: false, hasLocation: false };
+      return {
+        runnerId, displayName: runner.display_name, email: runner.email,
+        online: online.has(runnerId), trackingActive: false, status: online.has(runnerId) ? "idle" : "offline",
+        hasLocation: false,
+      };
     }
+    const trackingActive = state.trackingActive === "true";
+    const fresh = Number.isFinite(Number(state.ts)) && now - Number(state.ts) <= freshnessWindowMs;
+    const status = trackingActive ? (fresh ? "live" : "stale") : (online.has(runnerId) ? "idle" : "offline");
     return {
       runnerId,
       displayName: runner.display_name,
@@ -113,6 +122,8 @@ apiRouter.get("/runners", requireDispatcher, async (_req: any, res) => {
       battery: state.battery ? Number(state.battery) : null,
       ts: Number(state.ts),
       online: online.has(runnerId),
+      trackingActive,
+      status,
       hasLocation: true,
     };
   });

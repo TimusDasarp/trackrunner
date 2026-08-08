@@ -16,6 +16,8 @@ export function useRunners() {
         displayName: prev[p.runnerId]?.displayName ?? `Runner ${p.runnerId}`,
         email: prev[p.runnerId]?.email ?? "",
         online: true,
+        trackingActive: true,
+        status: "live",
         hasLocation: true,
       },
     }));
@@ -23,8 +25,25 @@ export function useRunners() {
 
   const setOffline = useCallback((runnerId: string) => {
     setRunners((prev) =>
-      prev[runnerId] ? { ...prev, [runnerId]: { ...prev[runnerId], online: false } } : prev
+      prev[runnerId]
+        ? { ...prev, [runnerId]: { ...prev[runnerId], online: false, status: prev[runnerId].trackingActive ? "stale" : "offline" } }
+        : prev
     );
+  }, []);
+
+  const setTrackingStatus = useCallback((payload: { runnerId: string; trackingActive: boolean }) => {
+    setRunners((prev) => {
+      const runner = prev[payload.runnerId];
+      if (!runner) return prev;
+      return {
+        ...prev,
+        [payload.runnerId]: {
+          ...runner,
+          trackingActive: payload.trackingActive,
+          status: payload.trackingActive ? "stale" : (runner.online ? "idle" : "offline"),
+        },
+      };
+    });
   }, []);
 
   const refresh = useCallback(async () => {
@@ -66,11 +85,13 @@ export function useRunners() {
     const onDisconnect = () => setConnected(false);
     const onLocation = (p: LocationUpdate) => upsert(p);
     const onOffline = (p: { runnerId: string }) => setOffline(p.runnerId);
+    const onTrackingStatus = (p: { runnerId: string; trackingActive: boolean }) => setTrackingStatus(p);
 
     s.on("connect", onConnect);
     s.on("disconnect", onDisconnect);
     s.on("runner:location", onLocation);
     s.on("runner:offline", onOffline);
+    s.on("runner:status", onTrackingStatus);
 
     if (s.connected) setConnected(true);
 
@@ -80,8 +101,9 @@ export function useRunners() {
       s.off("disconnect", onDisconnect);
       s.off("runner:location", onLocation);
       s.off("runner:offline", onOffline);
+      s.off("runner:status", onTrackingStatus);
     };
-  }, [upsert, setOffline]);
+  }, [upsert, setOffline, setTrackingStatus]);
 
   return { runners, connected, refresh };
 }

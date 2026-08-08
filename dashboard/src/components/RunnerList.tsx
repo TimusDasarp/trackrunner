@@ -1,4 +1,4 @@
-import type { RunnerState } from "../lib/types";
+import { getRunnerStatus, type RunnerState } from "../lib/types";
 
 interface Props {
   runners: Record<string, RunnerState>;
@@ -14,12 +14,14 @@ function batteryClass(b: number | null | undefined) {
 }
 
 export default function RunnerList({ runners, selectedId, onSelect }: Props) {
-  const list = Object.values(runners).sort((a, b) => a.displayName.localeCompare(b.displayName));
+  const list = Object.values(runners)
+    .filter((runner) => getRunnerStatus(runner) === "live")
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
 
   if (list.length === 0) {
     return (
       <div className="text-slate-500 text-sm p-4">
-        No runners yet. Start the Android app to see live data.
+        No runners are actively tracking right now.
       </div>
     );
   }
@@ -36,11 +38,7 @@ export default function RunnerList({ runners, selectedId, onSelect }: Props) {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span
-                className={`inline-block w-2 h-2 rounded-full ${
-                  r.online ? "bg-accent" : "bg-slate-500"
-                }`}
-              />
+              <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" />
               <span className="font-medium truncate">{r.displayName}</span>
             </div>
             <span className={`text-sm font-mono ${batteryClass(r.battery)}`}>
@@ -48,7 +46,7 @@ export default function RunnerList({ runners, selectedId, onSelect }: Props) {
             </span>
           </div>
           <div className="text-xs text-slate-500 mt-1">
-            {!r.hasLocation ? "waiting for first location" : `${r.online ? "online" : "offline"} · ${new Date(r.ts!).toLocaleTimeString()}`}
+            {r.hasLocation ? `Live · updated ${new Date(r.ts!).toLocaleTimeString()}` : "Waiting for first location"}
           </div>
         </li>
       ))}

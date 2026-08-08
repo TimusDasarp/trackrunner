@@ -79,9 +79,11 @@ export const LocationTracking = {
 
     // Ensure socket is connected when tracking starts
     if (!socketClient.isConnected()) {
-      socketClient.connect().catch((err) => {
+      try {
+        await socketClient.connect();
+      } catch (err) {
         console.warn('[Tracking] Socket connection failed on start:', err);
-      });
+      }
     }
 
     const isRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
@@ -101,6 +103,8 @@ export const LocationTracking = {
       pausesUpdatesAutomatically: false,
       showsBackgroundLocationIndicator: true,
     });
+
+    await socketClient.setTrackingActive(true);
 
     // A background subscription does not guarantee an immediate callback,
     // especially when a newly started device has not moved yet. Capture one
@@ -129,6 +133,7 @@ export const LocationTracking = {
     if (isRegistered) {
       await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
     }
+    await socketClient.setTrackingActive(false);
   },
 
   async isTracking(): Promise<boolean> {
