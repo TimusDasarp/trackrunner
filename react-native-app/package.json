@@ -31,12 +31,6 @@
     "babel-preset-expo": "~55.0.8",
     "typescript": "~5.9.2"
   },
-  "resolutions": {
-    "hermes-compiler": "250829098.0.4"
-  },
-  "overrides": {
-    "hermes-compiler": "250829098.0.4"
-  },
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",

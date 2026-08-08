@@ -64,15 +64,6 @@
         {
           "color": "#0066CC"
         }
-      ],
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "useHermesV1": true,
-            "buildReactNativeFromSource": true
-          }
-        }
       ]
     ],
     "extra": {

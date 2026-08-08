@@ -91,3 +91,18 @@ export async function markOffline(runnerId: string) {
 export async function getOnlineRunners(): Promise<string[]> {
   return redis.smembers(K.online);
 }
+
+/** Remove a runner's retained trail and current map state without deleting the account. */
+export async function clearRunnerLocationData(runnerId: string): Promise<number> {
+  const result = await pool.query(
+    "DELETE FROM location_history WHERE runner_id = $1",
+    [runnerId]
+  );
+  await redis
+    .multi()
+    .del(K.state(runnerId))
+    .srem(K.all, runnerId)
+    .srem(K.online, runnerId)
+    .exec();
+  return result.rowCount ?? 0;
+}

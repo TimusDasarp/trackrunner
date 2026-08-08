@@ -102,6 +102,25 @@ export const LocationTracking = {
       showsBackgroundLocationIndicator: true,
     });
 
+    // A background subscription does not guarantee an immediate callback,
+    // especially when a newly started device has not moved yet. Capture one
+    // foreground fix so the runner is visible on the dispatcher map as soon
+    // as tracking is turned on, then let the background task handle updates.
+    const initialLocation = await this.getCurrentLocation();
+    if (initialLocation) {
+      await LocationCache.saveLocation(initialLocation, false);
+      if (!socketClient.isConnected()) {
+        try {
+          await socketClient.connect();
+        } catch (error) {
+          console.warn('[Tracking] Initial location buffered for retry:', error);
+        }
+      }
+      if (socketClient.isConnected()) {
+        await SyncService.syncPendingLocations();
+      }
+    }
+
     return true;
   },
 

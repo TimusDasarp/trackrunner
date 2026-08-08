@@ -51,8 +51,13 @@ class SocketClient {
     this.connectionPromise = new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('Socket connection timed out')), 10_000);
       const socket = io(SOCKET_URL, {
+        path: '/socket.io',
         auth: { token },
-        transports: ['websocket'],
+        // Start with the transport that we have verified through Render's
+        // proxy. Socket.IO upgrades this polling connection to WebSocket when
+        // possible, but location delivery remains available when it is not.
+        transports: ['polling', 'websocket'],
+        tryAllTransports: true,
         reconnection: true,
         reconnectionAttempts: Infinity,
         reconnectionDelay: 1000,
@@ -61,7 +66,7 @@ class SocketClient {
       this.socket = socket;
 
       socket.on('connect', () => {
-        console.log('[Socket] Connected');
+        console.log('[Socket] Connected via', socket.io.engine.transport.name);
         this.connected = true;
         this.notifyListeners();
         clearTimeout(timeout);

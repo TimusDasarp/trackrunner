@@ -17,6 +17,18 @@ export interface LocationUpdate {
   ts: number;
 }
 
-export interface RunnerState extends LocationUpdate {
+export interface RunnerState {
+  runnerId: string;
+  displayName: string;
+  email: string;
   online: boolean;
+  hasLocation: boolean;
+  lat?: number;
+  lon?: number;
+  accuracy?: number | null;
+  speed?: number | null;
+  bearing?: number | null;
+  altitude?: number | null;
+  battery?: number | null;
+  ts?: number;
 }

@@ -10,7 +10,14 @@ export function useRunners() {
   const upsert = useCallback((p: LocationUpdate) => {
     setRunners((prev) => ({
       ...prev,
-      [p.runnerId]: { ...prev[p.runnerId], ...p, online: true },
+      [p.runnerId]: {
+        ...prev[p.runnerId],
+        ...p,
+        displayName: prev[p.runnerId]?.displayName ?? `Runner ${p.runnerId}`,
+        email: prev[p.runnerId]?.email ?? "",
+        online: true,
+        hasLocation: true,
+      },
     }));
   }, []);
 
@@ -18,6 +25,20 @@ export function useRunners() {
     setRunners((prev) =>
       prev[runnerId] ? { ...prev, [runnerId]: { ...prev[runnerId], online: false } } : prev
     );
+  }, []);
+
+  const refresh = useCallback(async () => {
+    try {
+      const response = await api<{ runners: RunnerState[] }>("/api/runners");
+      setRunners(
+        response.runners.reduce<Record<string, RunnerState>>((acc, runner) => {
+          acc[runner.runnerId] = runner;
+          return acc;
+        }, {})
+      );
+    } catch (error) {
+      console.warn("Failed to load runners:", error);
+    }
   }, []);
 
   useEffect(() => {
@@ -62,5 +83,5 @@ export function useRunners() {
     };
   }, [upsert, setOffline]);
 
-  return { runners, connected };
+  return { runners, connected, refresh };
 }

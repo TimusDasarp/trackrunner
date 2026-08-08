@@ -14,7 +14,7 @@ function batteryClass(b: number | null | undefined) {
 }
 
 export default function RunnerList({ runners, selectedId, onSelect }: Props) {
-  const list = Object.values(runners).sort((a, b) => a.runnerId.localeCompare(b.runnerId));
+  const list = Object.values(runners).sort((a, b) => a.displayName.localeCompare(b.displayName));
 
   if (list.length === 0) {
     return (
@@ -41,15 +41,14 @@ export default function RunnerList({ runners, selectedId, onSelect }: Props) {
                   r.online ? "bg-accent" : "bg-slate-500"
                 }`}
               />
-              <span className="font-medium">Runner {r.runnerId}</span>
+              <span className="font-medium truncate">{r.displayName}</span>
             </div>
             <span className={`text-sm font-mono ${batteryClass(r.battery)}`}>
               {r.battery != null ? `${Math.round(r.battery)}%` : "—"}
             </span>
           </div>
           <div className="text-xs text-slate-500 mt-1">
-            {r.online ? "online" : "offline"} ·{" "}
-            {new Date(r.ts).toLocaleTimeString()}
+            {!r.hasLocation ? "waiting for first location" : `${r.online ? "online" : "offline"} · ${new Date(r.ts!).toLocaleTimeString()}`}
           </div>
         </li>
       ))}

@@ -21,8 +21,8 @@ function makeIcon(state: RunnerState, selected: boolean) {
 
 function FlyToRunner({ runner }: { runner: RunnerState | null }) {
   const map = useMap();
-  if (runner) {
-    map.flyTo([runner.lat, runner.lon], 16, { duration: 0.8 });
+  if (runner?.hasLocation) {
+    map.flyTo([runner.lat!, runner.lon!], 16, { duration: 0.8 });
   }
   return null;
 }
@@ -35,8 +35,8 @@ interface Props {
 
 export default function RunnerMap({ runners, selectedId, trail }: Props) {
   const initialCenter = useMemo<[number, number]>(() => {
-    const list = Object.values(runners);
-    if (list.length > 0) return [list[0].lat, list[0].lon];
+    const list = Object.values(runners).filter((runner) => runner.hasLocation);
+    if (list.length > 0) return [list[0].lat!, list[0].lon!];
     return [37.7749, -122.4194]; // San Francisco fallback
   }, [runners]);
 
@@ -53,20 +53,20 @@ export default function RunnerMap({ runners, selectedId, trail }: Props) {
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      {Object.values(runners).map((r) => (
+      {Object.values(runners).filter((r) => r.hasLocation).map((r) => (
         <Marker
           key={r.runnerId}
-          position={[r.lat, r.lon]}
+          position={[r.lat!, r.lon!]}
           icon={makeIcon(r, selectedId === r.runnerId)}
         >
           <Popup>
             <div className="text-sm">
-              <div className="font-semibold">Runner {r.runnerId}</div>
+              <div className="font-semibold">{r.displayName}</div>
               <div>Battery: {r.battery != null ? `${Math.round(r.battery)}%` : "—"}</div>
               <div>Speed: {r.speed != null ? `${r.speed.toFixed(1)} m/s` : "—"}</div>
               <div>Status: {r.online ? "online" : "offline"}</div>
               <div className="text-xs text-slate-500">
-                {new Date(r.ts).toLocaleTimeString()}
+                {new Date(r.ts!).toLocaleTimeString()}
               </div>
             </div>
           </Popup>
