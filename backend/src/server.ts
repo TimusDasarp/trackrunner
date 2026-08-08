@@ -28,7 +28,10 @@ async function main() {
         if (!origin || config.corsOrigins.includes(origin)) return callback(null, true);
         return callback(new Error("Origin is not allowed"));
       },
-      methods: ["GET", "POST"],
+      // Dashboard account management uses PATCH to rename runners and DELETE
+      // to clear a runner's retained location data. Include these methods in
+      // browser preflight responses as well as the existing read/create APIs.
+      methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Authorization", "Content-Type"],
       maxAge: 86_400,
     })
