@@ -4,9 +4,10 @@ interface Props {
   runner: RunnerState | null;
   trail: Array<[number, number]>;
   onRename: (runner: RunnerState) => void;
+  onCreateTask: (runner: RunnerState) => void;
 }
 
-export default function RunnerDetail({ runner, trail, onRename }: Props) {
+export default function RunnerDetail({ runner, trail, onRename, onCreateTask }: Props) {
   if (!runner) {
     return (
       <div className="px-5 py-4">
@@ -25,6 +26,7 @@ export default function RunnerDetail({ runner, trail, onRename }: Props) {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button onClick={() => onRename(runner)} className="text-xs text-accent hover:underline">Edit</button>
+          <button onClick={() => onCreateTask(runner)} className="rounded bg-accent px-2 py-1 text-xs font-semibold text-ink hover:bg-cyan-200">Assign task</button>
           <StatusBadge status={getRunnerStatus(runner)} />
         </div>
       </div>

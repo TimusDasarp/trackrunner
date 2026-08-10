@@ -44,3 +44,10 @@ export interface TrackingState {
   lastLocation: LocationPoint | null;
   pendingCount: number;
 }
+
+export type TaskStatus = 'sent' | 'acknowledged' | 'in_progress' | 'completed' | 'unable_to_complete';
+export interface RunnerTaskDocument { id: string; name: string; collected: boolean; collectedAt?: string | null; }
+export interface RunnerTask {
+  id: string; runnerId: string; clientName: string; clientAddress: string; clientPhone: string;
+  notes?: string | null; status: TaskStatus; createdAt: string; documents: RunnerTaskDocument[];
+}

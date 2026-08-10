@@ -4,7 +4,7 @@
 
 import { API_BASE_URL, requireApiOrigin } from '../constants';
 import { SessionStore } from './sessionStore';
-import type { AuthResponse, LoginCredentials } from '../types';
+import type { AuthResponse, LoginCredentials, RunnerTask, TaskStatus } from '../types';
 
 type ApiErrorBody = { error?: string; message?: string };
 
@@ -42,6 +42,18 @@ class ApiClient {
     } catch (error) {
       // Logout must still clear the device session when the network is unavailable.
     }
+  }
+
+  async getTasks(): Promise<RunnerTask[]> {
+    const response = await request<{ tasks: RunnerTask[] }>('/api/tasks');
+    return response.tasks ?? [];
+  }
+
+  async updateTask(id: string, status: TaskStatus, documents?: Array<{ id: string; collected: boolean }>): Promise<RunnerTask> {
+    const response = await request<{ task: RunnerTask }>(`/api/tasks/${id}`, {
+      method: 'PATCH', body: JSON.stringify({ status, documents }),
+    });
+    return response.task;
   }
 }
 

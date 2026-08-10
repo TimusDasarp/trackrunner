@@ -32,6 +32,7 @@ interface TrackingStatusAck {
 }
 
 type SocketConnectionListener = (connected: boolean) => void;
+type SocketEventListener = (...args: any[]) => void;
 
 class SocketClient {
   private socket: Socket | null = null;
@@ -183,7 +184,7 @@ class SocketClient {
   }
 
   on(event: string, handler: (...args: any[]) => void): void {
-    this.socket?.on(event, handler);
+    this.socket?.on(event, handler as SocketEventListener);
   }
 
   off(event: string, handler?: (...args: any[]) => void): void {

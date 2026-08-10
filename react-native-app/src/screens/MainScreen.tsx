@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
 import { useTracking } from '../hooks/useTracking';
+import { useTasks } from '../hooks/useTasks';
+import type { RunnerTask } from '../types';
 
 export default function MainScreen() {
   const { user, logout } = useAuth();
@@ -21,6 +23,7 @@ export default function MainScreen() {
     syncNow,
     refreshPendingCount,
   } = useTracking();
+  const { tasks, loading: tasksLoading, refresh: refreshTasks, update: updateTask } = useTasks();
 
   async function handleToggleTracking() {
     try {
@@ -60,13 +63,21 @@ export default function MainScreen() {
     ]);
   }
 
+  async function advanceTask(task: RunnerTask) {
+    const next = task.status === 'sent' ? 'acknowledged' : task.status === 'acknowledged' ? 'in_progress' : 'completed';
+    try { await updateTask(task, next); }
+    catch (error: any) { Alert.alert('Could not update task', error?.message || 'Please try again'); }
+  }
+
+  const taskButton = (status: RunnerTask['status']) => status === 'sent' ? 'Acknowledge task' : status === 'acknowledged' ? 'Start task' : 'Mark completed';
+
   return (
     <ScrollView
       className="flex-1 bg-slate-50"
       refreshControl={
         <RefreshControl
           refreshing={false}
-          onRefresh={refreshPendingCount}
+          onRefresh={() => { refreshPendingCount(); refreshTasks(); }}
         />
       }
     >
@@ -83,6 +94,27 @@ export default function MainScreen() {
           <TouchableOpacity onPress={handleLogout}>
             <Text className="text-blue-600 font-medium">Logout</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Live dispatcher tasks */}
+        <View className="mb-6">
+          <View className="flex-row items-center justify-between mb-2">
+            <Text className="text-sm font-medium text-slate-500">ASSIGNED TASKS</Text>
+            <TouchableOpacity onPress={() => refreshTasks()}><Text className="text-blue-600 font-medium">Refresh</Text></TouchableOpacity>
+          </View>
+          {tasksLoading ? <Text className="text-slate-500">Loading tasks…</Text> : tasks.length === 0 ? (
+            <View className="bg-white rounded-2xl p-5 shadow-sm"><Text className="text-slate-500">No active tasks assigned.</Text></View>
+          ) : tasks.map((task) => (
+            <View key={task.id} className="bg-white rounded-2xl p-5 mb-3 shadow-sm border border-blue-100">
+              <View className="flex-row items-start justify-between gap-2"><View className="flex-1"><Text className="text-lg font-bold text-slate-900">{task.clientName}</Text><Text className="text-xs text-blue-700 uppercase font-semibold mt-1">{task.status.replace('_', ' ')}</Text></View></View>
+              <Text className="text-slate-700 mt-3">{task.clientAddress}</Text>
+              <Text className="text-blue-600 font-semibold mt-1">{task.clientPhone}</Text>
+              {!!task.notes && <Text className="text-slate-600 mt-3">{task.notes}</Text>}
+              <Text className="text-xs font-semibold text-slate-500 mt-4 mb-2">DOCUMENTS TO COLLECT</Text>
+              {task.documents.map((doc) => <TouchableOpacity key={doc.id} className="flex-row items-center py-1" onPress={() => updateTask(task, task.status, task.documents.map((item) => item.id === doc.id ? { ...item, collected: !item.collected } : item))}><Text className={`mr-2 text-base ${doc.collected ? 'text-green-600' : 'text-slate-400'}`}>{doc.collected ? '✓' : '○'}</Text><Text className={doc.collected ? 'text-slate-400 line-through' : 'text-slate-800'}>{doc.name}</Text></TouchableOpacity>)}
+              <TouchableOpacity className="bg-blue-600 rounded-xl py-3 items-center mt-4" onPress={() => advanceTask(task)}><Text className="text-white font-semibold">{taskButton(task.status)}</Text></TouchableOpacity>
+            </View>
+          ))}
         </View>
 
         {/* Status Card */}

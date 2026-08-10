@@ -65,6 +65,45 @@ CREATE TABLE IF NOT EXISTS runner_assignments (
 );
 CREATE INDEX IF NOT EXISTS idx_runner_assignments_dispatcher_active
   ON runner_assignments (dispatcher_id, active, runner_id);
+
+CREATE TABLE IF NOT EXISTS document_types (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (organization_id, name)
+);
+
+INSERT INTO document_types (organization_id, name)
+SELECT id, document_name FROM organizations
+CROSS JOIN (VALUES ('Cheque'), ('Account Opening Form'), ('Modification Form'), ('DIS Slip')) AS defaults(document_name)
+ON CONFLICT (organization_id, name) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS runner_tasks (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  dispatcher_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  runner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  client_name TEXT NOT NULL,
+  client_address TEXT NOT NULL,
+  client_phone TEXT NOT NULL,
+  notes TEXT,
+  status TEXT NOT NULL DEFAULT 'sent' CHECK (status IN ('sent', 'acknowledged', 'in_progress', 'completed', 'unable_to_complete')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  acknowledged_at TIMESTAMPTZ,
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_runner_tasks_runner_status ON runner_tasks (runner_id, status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS runner_task_documents (
+  id BIGSERIAL PRIMARY KEY,
+  task_id BIGINT NOT NULL REFERENCES runner_tasks(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  collected BOOLEAN NOT NULL DEFAULT false,
+  collected_at TIMESTAMPTZ
+);
 `;
 
 async function main() {

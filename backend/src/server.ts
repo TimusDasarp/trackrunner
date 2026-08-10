@@ -53,6 +53,7 @@ async function main() {
     },
     transports: ["websocket", "polling"],
   });
+  app.set("io", io);
   attachSockets(io);
 
   app.get("/api/ready", async (_req, res) => {

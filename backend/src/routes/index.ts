@@ -27,6 +27,19 @@ const UpdateRunnerSchema = z.object({
   displayName: z.string().trim().min(2).max(80),
 });
 
+const CreateTaskSchema = z.object({
+  clientName: z.string().trim().min(2).max(120),
+  clientAddress: z.string().trim().min(5).max(500),
+  clientPhone: z.string().trim().min(5).max(40),
+  notes: z.string().trim().max(1000).optional(),
+  documents: z.array(z.string().trim().min(1).max(120)).min(1).max(30),
+});
+
+const UpdateTaskSchema = z.object({
+  status: z.enum(["sent", "acknowledged", "in_progress", "completed", "unable_to_complete"]),
+  documents: z.array(z.object({ id: z.union([z.string(), z.number()]), collected: z.boolean() })).max(30).optional(),
+});
+
 apiRouter.post("/auth/login", async (req, res) => {
   const parsed = LoginSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid body" });
@@ -78,6 +91,29 @@ function requireDispatcher(req: any, res: any, next: any) {
   } catch {
     res.status(401).json({ error: "invalid token" });
   }
+}
+
+function requireUser(req: any, res: any, next: any) {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) return res.status(401).json({ error: "missing token" });
+  try { req.user = jwt.verify(auth.slice(7), config.jwtSecret); next(); }
+  catch { res.status(401).json({ error: "invalid token" }); }
+}
+
+function taskDto(row: any) {
+  return {
+    id: String(row.id), runnerId: String(row.runner_id), clientName: row.client_name,
+    clientAddress: row.client_address, clientPhone: row.client_phone, notes: row.notes,
+    status: row.status, createdAt: row.created_at, acknowledgedAt: row.acknowledged_at,
+    startedAt: row.started_at, completedAt: row.completed_at,
+  };
+}
+
+async function getTask(taskId: string, organizationId: string) {
+  const { rows } = await pool.query(`SELECT * FROM runner_tasks WHERE id = $1 AND organization_id = $2`, [taskId, organizationId]);
+  if (!rows[0]) return null;
+  const { rows: documents } = await pool.query(`SELECT id, name, collected, collected_at FROM runner_task_documents WHERE task_id = $1 ORDER BY id`, [taskId]);
+  return { ...taskDto(rows[0]), documents: documents.map((d) => ({ id: String(d.id), name: d.name, collected: d.collected, collectedAt: d.collected_at })) };
 }
 
 apiRouter.get("/runners", requireDispatcher, async (_req: any, res) => {
@@ -220,4 +256,50 @@ apiRouter.get("/runners/:id/history", requireDispatcher, async (req: any, res) =
     [id, req.user.organizationId, req.user.sub, limit]
   );
   res.json({ runnerId: id, points: rows.reverse() });
+});
+
+apiRouter.get("/document-types", requireDispatcher, async (req: any, res) => {
+  const { rows } = await pool.query(`SELECT id, name FROM document_types WHERE organization_id = $1 AND active = true ORDER BY name`, [req.user.organizationId]);
+  res.json({ documentTypes: rows.map((row) => ({ id: String(row.id), name: row.name })) });
+});
+
+apiRouter.post("/runners/:id/tasks", requireDispatcher, async (req: any, res) => {
+  const parsed = CreateTaskSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid task details" });
+  const runnerId = String(req.params.id);
+  const { rows: assignment } = await pool.query(`SELECT 1 FROM runner_assignments WHERE runner_id = $1 AND dispatcher_id = $2 AND organization_id = $3 AND active = true`, [runnerId, req.user.sub, req.user.organizationId]);
+  if (!assignment[0]) return res.status(404).json({ error: "runner not found" });
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(`INSERT INTO runner_tasks (organization_id, dispatcher_id, runner_id, client_name, client_address, client_phone, notes) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, [req.user.organizationId, req.user.sub, runnerId, parsed.data.clientName, parsed.data.clientAddress, parsed.data.clientPhone, parsed.data.notes || null]);
+    for (const document of [...new Set(parsed.data.documents)]) await client.query(`INSERT INTO runner_task_documents (task_id, name) VALUES ($1, $2)`, [rows[0].id, document]);
+    await client.query("COMMIT");
+    const task = await getTask(String(rows[0].id), String(req.user.organizationId));
+    req.app.get("io").to(`runner:${runnerId}`).emit("task:created", task);
+    res.status(201).json({ task });
+  } catch (error) { await client.query("ROLLBACK"); console.error("Failed to create task", error); res.status(500).json({ error: "could not create task" }); }
+  finally { client.release(); }
+});
+
+apiRouter.get("/tasks", requireUser, async (req: any, res) => {
+  const runnerFilter = req.user.role === "runner" ? "AND runner_id = $2" : "AND dispatcher_id = $2";
+  const { rows } = await pool.query(`SELECT * FROM runner_tasks WHERE organization_id = $1 ${runnerFilter} AND status NOT IN ('completed', 'unable_to_complete') ORDER BY created_at DESC`, [req.user.organizationId, req.user.sub]);
+  const tasks = await Promise.all(rows.map((row) => getTask(String(row.id), String(req.user.organizationId))));
+  res.json({ tasks });
+});
+
+apiRouter.patch("/tasks/:id", requireUser, async (req: any, res) => {
+  if (req.user.role !== "runner") return res.status(403).json({ error: "forbidden" });
+  const parsed = UpdateTaskSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid task update" });
+  const task = await getTask(String(req.params.id), String(req.user.organizationId));
+  if (!task || task.runnerId !== String(req.user.sub)) return res.status(404).json({ error: "task not found" });
+  const timeField = parsed.data.status === "acknowledged" ? "acknowledged_at" : parsed.data.status === "in_progress" ? "started_at" : (parsed.data.status === "completed" || parsed.data.status === "unable_to_complete") ? "completed_at" : null;
+  await pool.query(`UPDATE runner_tasks SET status = $1${timeField ? `, ${timeField} = COALESCE(${timeField}, now())` : ""} WHERE id = $2`, [parsed.data.status, task.id]);
+  for (const doc of parsed.data.documents ?? []) await pool.query(`UPDATE runner_task_documents SET collected = $1, collected_at = CASE WHEN $1 THEN COALESCE(collected_at, now()) ELSE NULL END WHERE id = $2 AND task_id = $3`, [doc.collected, doc.id, task.id]);
+  const updated = await getTask(task.id, String(req.user.organizationId));
+  req.app.get("io").to(`runner:${task.runnerId}`).emit("task:updated", updated);
+  req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${task.runnerId}`).emit("task:updated", updated);
+  res.json({ task: updated });
 });
