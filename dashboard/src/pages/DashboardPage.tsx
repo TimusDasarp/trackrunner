@@ -8,6 +8,7 @@ import RunnerList from "../components/RunnerList";
 import RunnerDetail from "../components/RunnerDetail";
 import { api } from "../lib/auth";
 import { getRunnerStatus, type RunnerState } from "../lib/types";
+import { Button, Card, Chip } from "@material-tailwind/react";
 
 type RunnerForm = { email: string; password: string; displayName: string };
 type TaskForm = { clientName: string; clientAddress: string; clientPhone: string; notes: string; documents: string[]; customDocument: string };
@@ -134,84 +135,86 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-ink text-slate-100 flex flex-col">
-      <header className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-6 border-b border-slate-800">
+    <div className="min-h-screen bg-panel text-ink flex flex-col">
+      <header className="sticky top-0 z-50 flex flex-wrap items-center justify-between gap-3 border-b border-[#e3e1e9] bg-surface/90 px-4 py-3 backdrop-blur-md md:px-7">
         <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-accent" />
-          <h1 className="font-semibold">TrackRunner</h1>
-          <span className="text-xs text-slate-500">
-            {connected ? "dashboard connected" : "dashboard reconnecting"} · {statusCounts.live} live · {statusCounts.stale} stale · {statusCounts.idle} idle
-          </span>
+          <div className="grid h-9 w-9 place-items-center rounded-xl bg-accent font-bold text-white">↗</div>
+          <div><h1 className="font-semibold leading-tight">TrackRunner</h1><p className="text-xs text-on-surface-variant">Dispatcher workspace</p></div>
+          <Chip className={`hidden rounded-full px-3 py-1 text-xs md:block ${connected ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{connected ? "Live connection" : "Reconnecting"}</Chip>
         </div>
         <div className="flex items-center gap-4">
-          <button onClick={openCreate} className="text-sm font-medium text-accent hover:text-cyan-200">Add runner</button>
-          <button onClick={logout} className="text-sm text-slate-400 hover:text-slate-100">Sign out</button>
+          <Button onClick={openCreate} size="sm" className="rounded-full bg-accent px-4 text-white">Add runner</Button>
+          <button onClick={logout} className="rounded-full px-3 py-2 text-sm font-medium text-on-surface-variant hover:bg-[#f0eff6]">Sign out</button>
         </div>
       </header>
 
-      <main className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4 p-3 md:p-4">
-        <aside className="order-1 md:col-span-4 lg:col-span-3 bg-panel rounded-2xl border border-slate-800 overflow-hidden max-h-72 md:max-h-none">
-          <div className="px-4 py-2 border-b border-slate-800 text-sm font-semibold">
-            Runners
-          </div>
+      <section className="grid grid-cols-2 gap-3 px-4 pt-4 md:grid-cols-4 md:px-7"><Metric label="Live runners" value={statusCounts.live} tone="bg-emerald-100 text-emerald-800" /><Metric label="Idle runners" value={statusCounts.idle} tone="bg-sky-100 text-sky-800" /><Metric label="Needs attention" value={statusCounts.stale} tone="bg-amber-100 text-amber-800" /><Metric label="Offline" value={statusCounts.offline} tone="bg-slate-200 text-slate-700" /></section>
+
+      <main className="flex-1 grid grid-cols-1 gap-4 p-4 md:grid-cols-12 md:px-7 md:pb-7">
+        <Card className="order-1 overflow-hidden rounded-[24px] border border-[#e3e1e9] bg-surface shadow-sm md:col-span-4 lg:col-span-3" color="default">
+          <div className="flex items-center justify-between border-b border-[#e3e1e9] px-5 py-4"><div><div className="text-sm font-semibold">Available runners</div><p className="mt-0.5 text-xs text-on-surface-variant">Live tracking now</p></div><span className="rounded-full bg-[#e9efff] px-2.5 py-1 text-xs font-semibold text-accent">{statusCounts.live}</span></div>
           <RunnerList
             runners={runners}
             selectedId={selectedId}
             onSelect={setSelectedId}
           />
-        </aside>
+        </Card>
 
-        <section className="order-2 md:col-span-8 lg:col-span-9 bg-panel rounded-2xl border border-slate-800 overflow-hidden min-h-[520px] flex flex-col">
-          <div className="border-b border-slate-800 shrink-0">
-            <div className="px-4 py-2 text-sm font-semibold">Details</div>
+        <Card className="order-2 min-h-[620px] overflow-hidden rounded-[24px] border border-[#e3e1e9] bg-surface shadow-sm md:col-span-8 lg:col-span-9" color="default">
+          <div className="border-b border-[#e3e1e9] shrink-0">
+            <div className="px-5 pt-4 text-sm font-semibold">Runner details</div>
             <RunnerDetail runner={selected} trail={trail} onRename={openRename} onCreateTask={openTask} />
           </div>
-          <div className="min-h-[360px] flex-1">
+          <div className="min-h-[400px] flex-1 p-3 pt-0">
             <RunnerMap runners={runners} selectedId={selectedId} trail={trail} />
           </div>
-        </section>
+        </Card>
       </main>
 
       {formMode && (
         <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center bg-black/60 p-3">
-          <form onSubmit={saveRunner} className="w-full max-w-md rounded-2xl border border-slate-700 bg-panel p-5 shadow-2xl">
+          <form onSubmit={saveRunner} className="w-full max-w-md rounded-[28px] bg-surface p-6 shadow-2xl">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <h2 className="font-semibold">{formMode === "create" ? "Add runner" : "Edit runner name"}</h2>
-                <p className="text-xs text-slate-400 mt-1">{formMode === "create" ? "The runner is assigned to your dashboard automatically." : "This is the name shown on the dashboard and map."}</p>
+                <p className="text-xs text-on-surface-variant mt-1">{formMode === "create" ? "The runner is assigned to your dashboard automatically." : "This is the name shown on the dashboard and map."}</p>
               </div>
-              <button type="button" onClick={() => setFormMode(null)} className="text-slate-400 hover:text-white" aria-label="Close">×</button>
+              <button type="button" onClick={() => setFormMode(null)} className="text-on-surface-variant" aria-label="Close">×</button>
             </div>
             <label className="block text-sm mb-1">Display name</label>
-            <input className="w-full mb-3 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 focus:outline-none focus:border-accent" value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} required minLength={2} maxLength={80} />
+            <input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2 focus:outline-none focus:border-accent" value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} required minLength={2} maxLength={80} />
             {formMode === "create" && <>
               <label className="block text-sm mb-1">Runner email</label>
-              <input className="w-full mb-3 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 focus:outline-none focus:border-accent" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required type="email" />
+              <input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2 focus:outline-none focus:border-accent" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required type="email" />
               <label className="block text-sm mb-1">Temporary password</label>
-              <input className="w-full mb-3 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 focus:outline-none focus:border-accent" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required type="password" minLength={8} />
+              <input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2 focus:outline-none focus:border-accent" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required type="password" minLength={8} />
             </>}
             {formError && <p className="mb-3 text-sm text-red-400">{formError}</p>}
             <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => setFormMode(null)} className="px-3 py-2 text-sm text-slate-300">Cancel</button>
-              <button disabled={formBusy} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-ink disabled:opacity-50">{formBusy ? "Saving…" : formMode === "create" ? "Create runner" : "Save name"}</button>
+              <button type="button" onClick={() => setFormMode(null)} className="px-3 py-2 text-sm text-on-surface-variant">Cancel</button>
+              <button disabled={formBusy} className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white disabled:opacity-50">{formBusy ? "Saving…" : formMode === "create" ? "Create runner" : "Save name"}</button>
             </div>
           </form>
         </div>
       )}
       {taskRunner && (
         <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center bg-black/60 p-3">
-          <form onSubmit={saveTask} className="w-full max-w-lg rounded-2xl border border-slate-700 bg-panel p-5 shadow-2xl max-h-[95vh] overflow-y-auto">
-            <div className="mb-4 flex items-center justify-between gap-3"><div><h2 className="font-semibold">Assign task to {taskRunner.displayName}</h2><p className="text-xs text-slate-400 mt-1">The runner receives this immediately when connected, and it remains available after reconnecting.</p></div><button type="button" onClick={() => setTaskRunner(null)} className="text-slate-400 hover:text-white">×</button></div>
-            <label className="block text-sm mb-1">Client name</label><input className="w-full mb-3 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2" required value={taskForm.clientName} onChange={(e) => setTaskForm({ ...taskForm, clientName: e.target.value })} />
-            <label className="block text-sm mb-1">Address</label><textarea className="w-full mb-3 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2" required minLength={5} value={taskForm.clientAddress} onChange={(e) => setTaskForm({ ...taskForm, clientAddress: e.target.value })} />
-            <label className="block text-sm mb-1">Phone number</label><input className="w-full mb-3 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2" required value={taskForm.clientPhone} onChange={(e) => setTaskForm({ ...taskForm, clientPhone: e.target.value })} />
-            <label className="block text-sm mb-2">Documents to collect</label><div className="grid grid-cols-2 gap-2 mb-3">{documentTypes.map((name) => <label key={name} className="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={taskForm.documents.includes(name)} onChange={(e) => setTaskForm({ ...taskForm, documents: e.target.checked ? [...taskForm.documents, name] : taskForm.documents.filter((item) => item !== name) })} />{name}</label>)}</div>
-            <input className="w-full mb-3 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2" placeholder="Other document (optional)" value={taskForm.customDocument} onChange={(e) => setTaskForm({ ...taskForm, customDocument: e.target.value })} />
-            <label className="block text-sm mb-1">Notes (optional)</label><textarea className="w-full mb-3 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2" value={taskForm.notes} onChange={(e) => setTaskForm({ ...taskForm, notes: e.target.value })} />
-            {taskError && <p className="mb-3 text-sm text-red-400">{taskError}</p>}<div className="flex justify-end gap-3"><button type="button" onClick={() => setTaskRunner(null)} className="px-3 py-2 text-sm">Cancel</button><button disabled={formBusy} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-ink disabled:opacity-50">{formBusy ? "Sending…" : "Send task"}</button></div>
+          <form onSubmit={saveTask} className="w-full max-w-lg rounded-[28px] bg-surface p-6 shadow-2xl max-h-[95vh] overflow-y-auto">
+            <div className="mb-4 flex items-center justify-between gap-3"><div><h2 className="font-semibold">Assign task to {taskRunner.displayName}</h2><p className="text-xs text-on-surface-variant mt-1">The runner receives this immediately when connected, and it remains available after reconnecting.</p></div><button type="button" onClick={() => setTaskRunner(null)} className="text-on-surface-variant">×</button></div>
+            <label className="block text-sm mb-1">Client name</label><input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" required value={taskForm.clientName} onChange={(e) => setTaskForm({ ...taskForm, clientName: e.target.value })} />
+            <label className="block text-sm mb-1">Address</label><textarea className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" required minLength={5} value={taskForm.clientAddress} onChange={(e) => setTaskForm({ ...taskForm, clientAddress: e.target.value })} />
+            <label className="block text-sm mb-1">Phone number</label><input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" required value={taskForm.clientPhone} onChange={(e) => setTaskForm({ ...taskForm, clientPhone: e.target.value })} />
+            <label className="block text-sm mb-2">Documents to collect</label><div className="grid grid-cols-2 gap-2 mb-3">{documentTypes.map((name) => <label key={name} className="flex items-center gap-2 text-sm text-on-surface-variant"><input className="accent-[#405f90]" type="checkbox" checked={taskForm.documents.includes(name)} onChange={(e) => setTaskForm({ ...taskForm, documents: e.target.checked ? [...taskForm.documents, name] : taskForm.documents.filter((item) => item !== name) })} />{name}</label>)}</div>
+            <input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" placeholder="Other document (optional)" value={taskForm.customDocument} onChange={(e) => setTaskForm({ ...taskForm, customDocument: e.target.value })} />
+            <label className="block text-sm mb-1">Notes (optional)</label><textarea className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" value={taskForm.notes} onChange={(e) => setTaskForm({ ...taskForm, notes: e.target.value })} />
+            {taskError && <p className="mb-3 text-sm text-red-700">{taskError}</p>}<div className="flex justify-end gap-3"><button type="button" onClick={() => setTaskRunner(null)} className="px-3 py-2 text-sm text-on-surface-variant">Cancel</button><button disabled={formBusy} className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white disabled:opacity-50">{formBusy ? "Sending…" : "Send task"}</button></div>
           </form>
         </div>
       )}
     </div>
   );
+}
+
+function Metric({ label, value, tone }: { label: string; value: number; tone: string }) {
+  return <div className="rounded-2xl border border-[#e3e1e9] bg-surface px-4 py-3 shadow-sm"><div className="text-xs text-on-surface-variant">{label}</div><div className="mt-1 flex items-center gap-2"><span className="text-2xl font-semibold">{value}</span><span className={`h-2 w-2 rounded-full ${tone.split(" ")[0]}`} /></div></div>;
 }

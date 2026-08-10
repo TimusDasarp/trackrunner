@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { api, getToken, setSession } from "../lib/auth";
+import { Button, Card, Input } from "@material-tailwind/react";
 
 export default function LoginPage() {
   const nav = useNavigate();
@@ -34,17 +35,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-ink">
-      <form
-        onSubmit={submit}
-        className="w-full max-w-sm bg-panel rounded-2xl p-8 shadow-2xl border border-slate-800"
-      >
-        <h1 className="text-2xl font-semibold mb-1">TrackRunner</h1>
-        <p className="text-slate-400 text-sm mb-6">Dispatcher sign-in</p>
+    <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top_left,_#dce6ff,_#f8f7ff_45%,_#eef3ff)] p-5">
+      <Card className="w-full max-w-sm rounded-[28px] bg-white/90 p-8 shadow-[0_20px_60px_rgba(40,55,82,.18)]" color="default">
+      <form onSubmit={submit}>
+        <div className="mb-7 flex items-center gap-3"><div className="grid h-12 w-12 place-items-center rounded-2xl bg-accent text-xl text-white">↗</div><div><h1 className="text-2xl font-semibold text-ink">TrackRunner</h1><p className="text-on-surface-variant text-sm">Dispatcher workspace</p></div></div>
 
         <label className="block text-sm text-slate-300 mb-1">Email</label>
-        <input
-          className="w-full mb-4 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 focus:outline-none focus:border-accent"
+        <Input
+          className="w-full mb-4"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           type="email"
@@ -52,8 +50,8 @@ export default function LoginPage() {
         />
 
         <label className="block text-sm text-slate-300 mb-1">Password</label>
-        <input
-          className="w-full mb-4 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 focus:outline-none focus:border-accent"
+        <Input
+          className="w-full mb-4"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           type="password"
@@ -62,17 +60,17 @@ export default function LoginPage() {
 
         {error && <div className="text-red-400 text-sm mb-3">{error}</div>}
 
-        <button
+        <Button
           disabled={busy}
-          className="w-full py-2 rounded-lg bg-accent text-ink font-semibold hover:opacity-90 disabled:opacity-50"
+          className="mt-2 w-full rounded-full bg-accent text-white disabled:opacity-50"
         >
           {busy ? "Signing in..." : "Sign in"}
-        </button>
+        </Button>
 
         <p className="text-xs text-slate-500 mt-4">
           Demo: <code>dispatcher@demo.local</code> / <code>demo1234</code>
         </p>
-      </form>
+      </form></Card>
     </div>
   );
 }

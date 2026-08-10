@@ -73,7 +73,7 @@ export default function RunnerMap({ runners, selectedId, trail }: Props) {
         </Marker>
       ))}
       {trail.length > 1 && (
-        <Polyline positions={trail} pathOptions={{ color: "#22d3ee", weight: 4 }} />
+        <Polyline positions={trail} pathOptions={{ color: "#405f90", weight: 4 }} />
       )}
       <FlyToRunner runner={selected} />
     </MapContainer>

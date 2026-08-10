@@ -7,9 +7,9 @@ html, body, #root {
   margin: 0;
 }
 
-.leaflet-container {
-  background: #0b0f17;
-}
+body { background: #f8f7ff; color: #1b1b1f; }
+
+.leaflet-container { background: #e8edf6; }
 
 .runner-icon {
   background: transparent;
@@ -20,19 +20,19 @@ html, body, #root {
   width: 14px;
   height: 14px;
   border-radius: 9999px;
-  background: #22d3ee;
-  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.25), 0 0 12px rgba(34, 211, 238, 0.6);
+  background: #405f90;
+  box-shadow: 0 0 0 5px rgba(64, 95, 144, 0.20), 0 4px 12px rgba(31, 49, 75, 0.28);
   transition: transform 150ms ease, box-shadow 150ms ease;
 }
 
 .runner-icon .dot.online {
-  background: #22d3ee;
-  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.25), 0 0 18px rgba(34, 211, 238, 0.55);
+  background: #405f90;
+  box-shadow: 0 0 0 5px rgba(64, 95, 144, 0.20), 0 4px 12px rgba(31, 49, 75, 0.28);
 }
 
 .runner-icon .dot.selected {
   transform: scale(1.25);
-  box-shadow: 0 0 0 6px rgba(34, 211, 238, 0.30), 0 0 20px rgba(34, 211, 238, 0.75);
+  box-shadow: 0 0 0 7px rgba(64, 95, 144, 0.25), 0 6px 20px rgba(31, 49, 75, 0.35);
 }
 
 .runner-icon .dot.selected::after {
@@ -40,7 +40,7 @@ html, body, #root {
   position: absolute;
   inset: 0;
   border-radius: 9999px;
-  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.4);
+  box-shadow: 0 0 0 4px rgba(64, 95, 144, 0.4);
   animation: pulse-dot 1.5s ease-out infinite;
 }
 
