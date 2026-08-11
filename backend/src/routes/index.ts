@@ -34,6 +34,10 @@ const CreateTaskSchema = z.object({
   clientPhone: z.string().trim().min(5).max(40),
   notes: z.string().trim().max(1000).optional(),
   documents: z.array(z.string().trim().min(1).max(120)).min(1).max(30),
+  destinationLat: z.number().min(-90).max(90).optional(),
+  destinationLon: z.number().min(-180).max(180).optional(),
+}).refine((value) => (value.destinationLat == null) === (value.destinationLon == null), {
+  message: "destination coordinates must be provided together",
 });
 
 const UpdateTaskSchema = z.object({
@@ -112,7 +116,7 @@ function taskDto(row: any) {
   return {
     id: String(row.id), runnerId: String(row.runner_id), clientName: row.client_name,
     clientAddress: row.client_address, clientPhone: row.client_phone, notes: row.notes,
-    status: row.status, createdAt: row.created_at, acknowledgedAt: row.acknowledged_at,
+    status: row.status, destinationLat: row.destination_lat, destinationLon: row.destination_lon, createdAt: row.created_at, acknowledgedAt: row.acknowledged_at,
     startedAt: row.started_at, completedAt: row.completed_at,
   };
 }
@@ -295,6 +299,15 @@ apiRouter.get("/document-types", requireDispatcher, async (req: any, res) => {
   res.json({ documentTypes: rows.map((row) => ({ id: String(row.id), name: row.name })) });
 });
 
+apiRouter.get("/runners/:id/tasks", requireDispatcher, async (req: any, res) => {
+  const runnerId = String(req.params.id);
+  const { rows: assignment } = await pool.query(`SELECT 1 FROM runner_assignments WHERE runner_id = $1 AND dispatcher_id = $2 AND organization_id = $3 AND active = true`, [runnerId, req.user.sub, req.user.organizationId]);
+  if (!assignment[0]) return res.status(404).json({ error: "runner not found" });
+  const { rows } = await pool.query(`SELECT * FROM runner_tasks WHERE organization_id = $1 AND runner_id = $2 AND status NOT IN ('completed', 'unable_to_complete') ORDER BY created_at DESC`, [req.user.organizationId, runnerId]);
+  const tasks = await Promise.all(rows.map((row) => getTask(String(row.id), String(req.user.organizationId))));
+  res.json({ tasks });
+});
+
 apiRouter.post("/runners/:id/tasks", requireDispatcher, async (req: any, res) => {
   const parsed = CreateTaskSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid task details" });
@@ -304,7 +317,7 @@ apiRouter.post("/runners/:id/tasks", requireDispatcher, async (req: any, res) =>
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const { rows } = await client.query(`INSERT INTO runner_tasks (organization_id, dispatcher_id, runner_id, client_name, client_address, client_phone, notes) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, [req.user.organizationId, req.user.sub, runnerId, parsed.data.clientName, parsed.data.clientAddress, parsed.data.clientPhone, parsed.data.notes || null]);
+    const { rows } = await client.query(`INSERT INTO runner_tasks (organization_id, dispatcher_id, runner_id, client_name, client_address, client_phone, notes, destination_lat, destination_lon) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`, [req.user.organizationId, req.user.sub, runnerId, parsed.data.clientName, parsed.data.clientAddress, parsed.data.clientPhone, parsed.data.notes || null, parsed.data.destinationLat ?? null, parsed.data.destinationLon ?? null]);
     for (const document of [...new Set(parsed.data.documents)]) await client.query(`INSERT INTO runner_task_documents (task_id, name) VALUES ($1, $2)`, [rows[0].id, document]);
     await client.query("COMMIT");
     const task = await getTask(String(rows[0].id), String(req.user.organizationId));

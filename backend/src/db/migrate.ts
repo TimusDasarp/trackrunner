@@ -96,6 +96,8 @@ CREATE TABLE IF NOT EXISTS runner_tasks (
   completed_at TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS idx_runner_tasks_runner_status ON runner_tasks (runner_id, status, created_at DESC);
+ALTER TABLE runner_tasks ADD COLUMN IF NOT EXISTS destination_lat DOUBLE PRECISION;
+ALTER TABLE runner_tasks ADD COLUMN IF NOT EXISTS destination_lon DOUBLE PRECISION;
 
 CREATE TABLE IF NOT EXISTS runner_task_documents (
   id BIGSERIAL PRIMARY KEY,

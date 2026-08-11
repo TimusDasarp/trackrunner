@@ -6,12 +6,14 @@ import { useRunners } from "../hooks/useRunners";
 import RunnerMap from "../components/RunnerMap";
 import RunnerList from "../components/RunnerList";
 import RunnerDetail from "../components/RunnerDetail";
+import AddressPicker, { type AddressPin } from "../components/AddressPicker";
 import { api } from "../lib/auth";
+import { getSocket } from "../lib/socket";
 import { getRunnerStatus, type RunnerState } from "../lib/types";
 import { Button, Card, Chip } from "@material-tailwind/react";
 
 type RunnerForm = { email: string; password: string; displayName: string };
-type TaskForm = { clientName: string; clientAddress: string; clientPhone: string; notes: string; documents: string[]; customDocument: string };
+type TaskForm = { clientName: string; clientAddress: string; clientPhone: string; notes: string; documents: string[]; customDocument: string; destinationLat?: number; destinationLon?: number };
 
 const emptyRunnerForm: RunnerForm = { email: "", password: "", displayName: "" };
 const emptyTaskForm: TaskForm = { clientName: "", clientAddress: "", clientPhone: "", notes: "", documents: [], customDocument: "" };
@@ -30,6 +32,7 @@ export default function DashboardPage() {
   const [taskForm, setTaskForm] = useState<TaskForm>(emptyTaskForm);
   const [documentTypes, setDocumentTypes] = useState<string[]>([]);
   const [taskError, setTaskError] = useState<string | null>(null);
+  const [activeTasks, setActiveTasks] = useState<Array<{ id: string; runnerId: string; clientName: string; clientAddress: string; status: string }>>([]);
 
   // Load history when selection changes
   useEffect(() => {
@@ -48,6 +51,21 @@ export default function DashboardPage() {
   }, [selectedId, runners[selectedId ?? ""]?.hasLocation]);
 
   const selected = selectedId ? runners[selectedId] ?? null : null;
+
+  useEffect(() => {
+    if (!selectedId) return setActiveTasks([]);
+    api<{ tasks: Array<{ id: string; runnerId: string; clientName: string; clientAddress: string; status: string }> }>(`/api/runners/${selectedId}/tasks`).then((response) => setActiveTasks(response.tasks ?? [])).catch(() => setActiveTasks([]));
+  }, [selectedId]);
+
+  useEffect(() => {
+    const socket = getSocket();
+    const updateTask = (task: { id: string; runnerId: string; clientName: string; clientAddress: string; status: string }) => {
+      if (task.runnerId !== selectedId) return;
+      setActiveTasks((current) => (task.status === "completed" || task.status === "unable_to_complete") ? current.filter((item) => item.id !== task.id) : [task, ...current.filter((item) => item.id !== task.id)]);
+    };
+    socket.on("task:created", updateTask); socket.on("task:updated", updateTask);
+    return () => { socket.off("task:created", updateTask); socket.off("task:updated", updateTask); };
+  }, [selectedId]);
 
   // Append live updates to trail
   useEffect(() => {
@@ -163,7 +181,7 @@ export default function DashboardPage() {
         <Card className="order-2 min-h-[620px] overflow-hidden rounded-[24px] border border-[#e3e1e9] bg-surface shadow-sm md:col-span-8 lg:col-span-9" color="default">
           <div className="border-b border-[#e3e1e9] shrink-0">
             <div className="px-5 pt-4 text-sm font-semibold">Runner details</div>
-            <RunnerDetail runner={selected} trail={trail} onRename={openRename} onCreateTask={openTask} />
+            <RunnerDetail runner={selected} trail={trail} onRename={openRename} onCreateTask={openTask} tasks={activeTasks} />
           </div>
           <div className="min-h-[400px] flex-1 p-3 pt-0">
             <RunnerMap runners={runners} selectedId={selectedId} trail={trail} />
@@ -202,7 +220,7 @@ export default function DashboardPage() {
           <form onSubmit={saveTask} className="w-full max-w-lg rounded-[28px] bg-surface p-6 shadow-2xl max-h-[95vh] overflow-y-auto">
             <div className="mb-4 flex items-center justify-between gap-3"><div><h2 className="font-semibold">Assign task to {taskRunner.displayName}</h2><p className="text-xs text-on-surface-variant mt-1">The runner receives this immediately when connected, and it remains available after reconnecting.</p></div><button type="button" onClick={() => setTaskRunner(null)} className="text-on-surface-variant">×</button></div>
             <label className="block text-sm mb-1">Client name</label><input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" required value={taskForm.clientName} onChange={(e) => setTaskForm({ ...taskForm, clientName: e.target.value })} />
-            <label className="block text-sm mb-1">Address</label><textarea className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" required minLength={5} value={taskForm.clientAddress} onChange={(e) => setTaskForm({ ...taskForm, clientAddress: e.target.value })} />
+            <AddressPicker value={taskForm.destinationLat != null && taskForm.destinationLon != null ? { address: taskForm.clientAddress, lat: taskForm.destinationLat, lon: taskForm.destinationLon } : null} onChange={(pin: AddressPin) => setTaskForm({ ...taskForm, clientAddress: pin.address, destinationLat: pin.lat, destinationLon: pin.lon })} />
             <label className="block text-sm mb-1">Phone number</label><input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" required value={taskForm.clientPhone} onChange={(e) => setTaskForm({ ...taskForm, clientPhone: e.target.value })} />
             <label className="block text-sm mb-2">Documents to collect</label><div className="grid grid-cols-2 gap-2 mb-3">{documentTypes.map((name) => <label key={name} className="flex items-center gap-2 text-sm text-on-surface-variant"><input className="accent-[#405f90]" type="checkbox" checked={taskForm.documents.includes(name)} onChange={(e) => setTaskForm({ ...taskForm, documents: e.target.checked ? [...taskForm.documents, name] : taskForm.documents.filter((item) => item !== name) })} />{name}</label>)}</div>
             <input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" placeholder="Other document (optional)" value={taskForm.customDocument} onChange={(e) => setTaskForm({ ...taskForm, customDocument: e.target.value })} />
