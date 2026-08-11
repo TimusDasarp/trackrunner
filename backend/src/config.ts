@@ -53,6 +53,8 @@ export const config = {
     "postgres://trackrunner:trackrunner@localhost:5432/trackrunner"
   ),
   flushIntervalMs: positiveInteger("FLUSH_INTERVAL_MS", 10_000),
+  firebaseServiceAccountPath: process.env.FIREBASE_SERVICE_ACCOUNT_PATH,
+  firebaseServiceAccountJson: process.env.FIREBASE_SERVICE_ACCOUNT_JSON,
   corsOrigins,
   trustProxy: process.env.TRUST_PROXY === "true",
 };

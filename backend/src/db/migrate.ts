@@ -104,6 +104,20 @@ CREATE TABLE IF NOT EXISTS runner_task_documents (
   collected BOOLEAN NOT NULL DEFAULT false,
   collected_at TIMESTAMPTZ
 );
+
+CREATE TABLE IF NOT EXISTS runner_push_devices (
+  id BIGSERIAL PRIMARY KEY,
+  runner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token TEXT NOT NULL UNIQUE,
+  platform TEXT NOT NULL CHECK (platform IN ('android', 'ios')),
+  app_version TEXT,
+  permission_granted BOOLEAN NOT NULL DEFAULT true,
+  active BOOLEAN NOT NULL DEFAULT true,
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_runner_push_devices_active ON runner_push_devices (runner_id) WHERE active = true;
 `;
 
 async function main() {

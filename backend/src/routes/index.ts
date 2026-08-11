@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { pool } from "../db/pool";
 import { config } from "../config";
+import { sendTaskAssignmentPush } from "../services/pushNotifications";
 import {
   clearRunnerLocationData,
   getAllRunnerStates,
@@ -38,6 +39,13 @@ const CreateTaskSchema = z.object({
 const UpdateTaskSchema = z.object({
   status: z.enum(["sent", "acknowledged", "in_progress", "completed", "unable_to_complete"]),
   documents: z.array(z.object({ id: z.union([z.string(), z.number()]), collected: z.boolean() })).max(30).optional(),
+});
+
+const PushDeviceSchema = z.object({
+  token: z.string().trim().min(20).max(4096),
+  platform: z.enum(["android", "ios"]),
+  appVersion: z.string().trim().min(1).max(80).optional(),
+  permissionGranted: z.boolean().default(true),
 });
 
 apiRouter.post("/auth/login", async (req, res) => {
@@ -108,6 +116,29 @@ function taskDto(row: any) {
     startedAt: row.started_at, completedAt: row.completed_at,
   };
 }
+
+apiRouter.put("/devices/push-token", requireUser, async (req: any, res) => {
+  if (req.user.role !== "runner") return res.status(403).json({ error: "forbidden" });
+  const parsed = PushDeviceSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid push device" });
+  const device = parsed.data;
+  await pool.query(
+    `INSERT INTO runner_push_devices (runner_id, token, platform, app_version, permission_granted, active)
+     VALUES ($1, $2, $3, $4, $5, $5)
+     ON CONFLICT (token) DO UPDATE SET runner_id = EXCLUDED.runner_id, platform = EXCLUDED.platform,
+       app_version = EXCLUDED.app_version, permission_granted = EXCLUDED.permission_granted,
+       active = EXCLUDED.active, last_seen_at = now(), updated_at = now()`,
+    [req.user.sub, device.token, device.platform, device.appVersion ?? null, device.permissionGranted]
+  );
+  res.json({ ok: true });
+});
+
+apiRouter.delete("/devices/push-token", requireUser, async (req: any, res) => {
+  const token = typeof req.body?.token === "string" ? req.body.token : null;
+  if (!token) return res.status(400).json({ error: "invalid push device" });
+  await pool.query("UPDATE runner_push_devices SET active = false, updated_at = now() WHERE runner_id = $1 AND token = $2", [req.user.sub, token]);
+  res.json({ ok: true });
+});
 
 async function getTask(taskId: string, organizationId: string) {
   const { rows } = await pool.query(`SELECT * FROM runner_tasks WHERE id = $1 AND organization_id = $2`, [taskId, organizationId]);
@@ -277,6 +308,15 @@ apiRouter.post("/runners/:id/tasks", requireDispatcher, async (req: any, res) =>
     await client.query("COMMIT");
     const task = await getTask(String(rows[0].id), String(req.user.organizationId));
     req.app.get("io").to(`runner:${runnerId}`).emit("task:created", task);
+    const { rows: devices } = await pool.query(
+      "SELECT token FROM runner_push_devices WHERE runner_id = $1 AND active = true AND permission_granted = true",
+      [runnerId]
+    );
+    void sendTaskAssignmentPush(devices.map((device) => device.token), task!).then(async (invalidTokens) => {
+      if (invalidTokens.length > 0) {
+        await pool.query("UPDATE runner_push_devices SET active = false, updated_at = now() WHERE token = ANY($1)", [invalidTokens]);
+      }
+    }).catch((pushError) => console.error("Failed to send task-assignment push", pushError));
     res.status(201).json({ task });
   } catch (error) { await client.query("ROLLBACK"); console.error("Failed to create task", error); res.status(500).json({ error: "could not create task" }); }
   finally { client.release(); }
