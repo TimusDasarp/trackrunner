@@ -130,6 +130,7 @@ apiRouter.put("/devices/push-token", requireUser, async (req: any, res) => {
        active = EXCLUDED.active, last_seen_at = now(), updated_at = now()`,
     [req.user.sub, device.token, device.platform, device.appVersion ?? null, device.permissionGranted]
   );
+  console.log(`[push] registered device runner=${req.user.sub} platform=${device.platform}`);
   res.json({ ok: true });
 });
 
@@ -312,7 +313,9 @@ apiRouter.post("/runners/:id/tasks", requireDispatcher, async (req: any, res) =>
       "SELECT token FROM runner_push_devices WHERE runner_id = $1 AND active = true AND permission_granted = true",
       [runnerId]
     );
+    console.log(`[push] task assignment task=${task?.id} runner=${runnerId} devices=${devices.length}`);
     void sendTaskAssignmentPush(devices.map((device) => device.token), task!).then(async (invalidTokens) => {
+      console.log(`[push] task assignment result task=${task?.id} invalid=${invalidTokens.length}`);
       if (invalidTokens.length > 0) {
         await pool.query("UPDATE runner_push_devices SET active = false, updated_at = now() WHERE token = ANY($1)", [invalidTokens]);
       }
