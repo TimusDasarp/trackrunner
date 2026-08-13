@@ -38,13 +38,13 @@ export default function DashboardPage() {
   const [activeTasks, setActiveTasks] = useState<DashboardTask[]>([]);
   const [taskTab, setTaskTab] = useState<"active" | "completed">("active");
   const [boardTasks, setBoardTasks] = useState<DashboardTask[]>([]);
-  const [snackbar, setSnackbar] = useState<string | null>(null);
+  const [pendingDeletion, setPendingDeletion] = useState<DashboardTask | null>(null);
 
   useEffect(() => {
-    if (!snackbar) return;
-    const timeout = window.setTimeout(() => setSnackbar(null), 4_000);
+    if (!pendingDeletion) return;
+    const timeout = window.setTimeout(() => setPendingDeletion(null), 10_000);
     return () => window.clearTimeout(timeout);
-  }, [snackbar]);
+  }, [pendingDeletion]);
 
   // Load history when selection changes
   useEffect(() => {
@@ -149,13 +149,18 @@ export default function DashboardPage() {
     catch { setDocumentTypes([]); }
   }
 
-  async function deleteTask(task: DashboardTask) {
-    if (!window.confirm(`Delete the completed task for ${task.clientName}?`)) return;
+  function requestDeleteTask(task: DashboardTask) {
+    setPendingDeletion(task);
+  }
+
+  async function confirmDeleteTask() {
+    if (!pendingDeletion) return;
+    const task = pendingDeletion;
+    setPendingDeletion(null);
     try {
       await api(`/api/tasks/${task.id}`, { method: "DELETE" });
       setBoardTasks((current) => current.filter((item) => item.id !== task.id));
-      setSnackbar("Completed task deleted");
-    } catch (error: any) { setSnackbar(error.message ?? "Could not delete task"); }
+    } catch (error: any) { setTaskError(error.message ?? "Could not delete task"); }
   }
 
   async function saveTask(event: React.FormEvent) {
@@ -232,7 +237,7 @@ export default function DashboardPage() {
         </Card>
 
         <div className="order-3 md:col-span-12 lg:col-span-4">
-          <TaskBoard tasks={boardTasks} tab={taskTab} onTabChange={setTaskTab} runners={runners} onSelectRunner={setSelectedId} onEdit={openEditTask} onDelete={deleteTask} />
+          <TaskBoard tasks={boardTasks} tab={taskTab} onTabChange={setTaskTab} runners={runners} onSelectRunner={setSelectedId} onEdit={openEditTask} onDelete={requestDeleteTask} />
         </div>
       </main>
 
@@ -276,7 +281,7 @@ export default function DashboardPage() {
           </form>
         </div>
       )}
-      {snackbar && <div role="status" className="fixed right-4 top-4 z-[1100] flex max-w-[calc(100vw-2rem)] items-center gap-3 rounded-lg bg-[#323232] px-4 py-3 text-sm text-white shadow-xl"><span>{snackbar}</span><button onClick={() => setSnackbar(null)} className="grid h-7 w-7 place-items-center rounded-full text-lg leading-none hover:bg-white/15" aria-label="Dismiss notification">×</button></div>}
+      {pendingDeletion && <div role="alert" className="fixed left-4 right-4 top-4 z-[1100] flex max-w-md flex-col gap-3 rounded-lg bg-[#323232] px-4 py-3 text-sm text-white shadow-xl sm:left-auto sm:flex-row sm:items-center sm:gap-4"><span className="min-w-0 break-words">Delete completed task for {pendingDeletion.clientName}?</span><div className="flex w-full gap-2 sm:w-auto sm:shrink-0"><button onClick={confirmDeleteTask} className="min-h-9 flex-1 rounded px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#a9c7ff] hover:bg-white/15 sm:flex-none">OK</button><button onClick={() => setPendingDeletion(null)} className="min-h-9 flex-1 rounded px-3 py-1 text-xs font-bold uppercase tracking-wide text-white/80 hover:bg-white/15 sm:flex-none">Cancel</button></div></div>}
     </div>
   );
 }
