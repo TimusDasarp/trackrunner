@@ -81,7 +81,10 @@ export function useRunners() {
     loadInitialRunners();
 
     const s = getSocket();
-    const onConnect = () => setConnected(true);
+    const onConnect = () => {
+      setConnected(true);
+      void refresh();
+    };
     const onDisconnect = () => setConnected(false);
     const onLocation = (p: LocationUpdate) => upsert(p);
     const onOffline = (p: { runnerId: string }) => setOffline(p.runnerId);
@@ -103,7 +106,7 @@ export function useRunners() {
       s.off("runner:offline", onOffline);
       s.off("runner:status", onTrackingStatus);
     };
-  }, [upsert, setOffline, setTrackingStatus]);
+  }, [upsert, setOffline, setTrackingStatus, refresh]);
 
   return { runners, connected, refresh };
 }

@@ -322,6 +322,7 @@ apiRouter.post("/runners/:id/tasks", requireDispatcher, async (req: any, res) =>
     await client.query("COMMIT");
     const task = await getTask(String(rows[0].id), String(req.user.organizationId));
     req.app.get("io").to(`runner:${runnerId}`).emit("task:created", task);
+    req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${runnerId}`).emit("task:created", task);
     const { rows: devices } = await pool.query(
       "SELECT token FROM runner_push_devices WHERE runner_id = $1 AND active = true AND permission_granted = true",
       [runnerId]
@@ -339,8 +340,12 @@ apiRouter.post("/runners/:id/tasks", requireDispatcher, async (req: any, res) =>
 });
 
 apiRouter.get("/tasks", requireUser, async (req: any, res) => {
+  const scope = req.query.scope === "completed" ? "completed" : "active";
   const runnerFilter = req.user.role === "runner" ? "AND runner_id = $2" : "AND dispatcher_id = $2";
-  const { rows } = await pool.query(`SELECT * FROM runner_tasks WHERE organization_id = $1 ${runnerFilter} AND status NOT IN ('completed', 'unable_to_complete') ORDER BY created_at DESC`, [req.user.organizationId, req.user.sub]);
+  const statusFilter = scope === "completed"
+    ? "AND status IN ('completed', 'unable_to_complete')"
+    : "AND status NOT IN ('completed', 'unable_to_complete')";
+  const { rows } = await pool.query(`SELECT * FROM runner_tasks WHERE organization_id = $1 ${runnerFilter} ${statusFilter} ORDER BY COALESCE(completed_at, created_at) DESC`, [req.user.organizationId, req.user.sub]);
   const tasks = await Promise.all(rows.map((row) => getTask(String(row.id), String(req.user.organizationId))));
   res.json({ tasks });
 });

@@ -20,13 +20,13 @@ export default function RunnerDetail({ runner, trail, onRename, onCreateTask, ta
 
   return (
     <div className="p-4 space-y-3 text-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="font-semibold text-base">{runner.displayName}</div>
           <StatusBadge status={getRunnerStatus(runner)} />
           <div className="text-xs text-on-surface-variant break-all">{runner.email}</div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full bg-[#f2f0f8] px-3 py-2 text-xs font-semibold text-on-surface-variant">Battery {runner.battery != null ? `${Math.round(runner.battery)}%` : "—"}</span>
           <button onClick={() => onRename(runner)} className="rounded-full px-3 py-2 text-xs font-semibold text-accent hover:bg-[#e9efff]">Edit</button>
           <button onClick={() => onCreateTask(runner)} className="rounded-full bg-accent px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#294b7a]">Assign task</button>

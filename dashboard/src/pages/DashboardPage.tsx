@@ -6,6 +6,7 @@ import { useRunners } from "../hooks/useRunners";
 import RunnerMap from "../components/RunnerMap";
 import RunnerList from "../components/RunnerList";
 import RunnerDetail from "../components/RunnerDetail";
+import TaskBoard from "../components/TaskBoard";
 import AddressPicker, { type AddressPin } from "../components/AddressPicker";
 import { api } from "../lib/auth";
 import { getSocket } from "../lib/socket";
@@ -14,6 +15,7 @@ import { Button, Card, Chip } from "@material-tailwind/react";
 
 type RunnerForm = { email: string; password: string; displayName: string };
 type TaskForm = { clientName: string; clientAddress: string; clientPhone: string; notes: string; documents: string[]; customDocument: string; destinationLat?: number; destinationLon?: number };
+type DashboardTask = { id: string; runnerId: string; clientName: string; clientAddress: string; status: string };
 
 const emptyRunnerForm: RunnerForm = { email: "", password: "", displayName: "" };
 const emptyTaskForm: TaskForm = { clientName: "", clientAddress: "", clientPhone: "", notes: "", documents: [], customDocument: "" };
@@ -32,7 +34,9 @@ export default function DashboardPage() {
   const [taskForm, setTaskForm] = useState<TaskForm>(emptyTaskForm);
   const [documentTypes, setDocumentTypes] = useState<string[]>([]);
   const [taskError, setTaskError] = useState<string | null>(null);
-  const [activeTasks, setActiveTasks] = useState<Array<{ id: string; runnerId: string; clientName: string; clientAddress: string; status: string }>>([]);
+  const [activeTasks, setActiveTasks] = useState<DashboardTask[]>([]);
+  const [taskTab, setTaskTab] = useState<"active" | "completed">("active");
+  const [boardTasks, setBoardTasks] = useState<DashboardTask[]>([]);
 
   // Load history when selection changes
   useEffect(() => {
@@ -58,14 +62,24 @@ export default function DashboardPage() {
   }, [selectedId]);
 
   useEffect(() => {
+    api<{ tasks: DashboardTask[] }>(`/api/tasks?scope=${taskTab}`)
+      .then((response) => setBoardTasks(response.tasks ?? []))
+      .catch(() => setBoardTasks([]));
+  }, [taskTab]);
+
+  useEffect(() => {
     const socket = getSocket();
     const updateTask = (task: { id: string; runnerId: string; clientName: string; clientAddress: string; status: string }) => {
-      if (task.runnerId !== selectedId) return;
-      setActiveTasks((current) => (task.status === "completed" || task.status === "unable_to_complete") ? current.filter((item) => item.id !== task.id) : [task, ...current.filter((item) => item.id !== task.id)]);
+      if (task.runnerId === selectedId) setActiveTasks((current) => (task.status === "completed" || task.status === "unable_to_complete") ? current.filter((item) => item.id !== task.id) : [task, ...current.filter((item) => item.id !== task.id)]);
+      setBoardTasks((current) => {
+        const isCompleted = task.status === "completed" || task.status === "unable_to_complete";
+        if ((taskTab === "completed") !== isCompleted) return current.filter((item) => item.id !== task.id);
+        return [task, ...current.filter((item) => item.id !== task.id)];
+      });
     };
     socket.on("task:created", updateTask); socket.on("task:updated", updateTask);
     return () => { socket.off("task:created", updateTask); socket.off("task:updated", updateTask); };
-  }, [selectedId]);
+  }, [selectedId, taskTab]);
 
   // Append live updates to trail
   useEffect(() => {
@@ -126,6 +140,7 @@ export default function DashboardPage() {
     try {
       await api(`/api/runners/${taskRunner.runnerId}/tasks`, { method: "POST", body: JSON.stringify({ ...taskForm, documents }) });
       setTaskRunner(null);
+      setTaskTab("active");
     } catch (error: any) { setTaskError(error.message ?? "Could not send task"); }
     finally { setFormBusy(false); }
   }
@@ -187,6 +202,10 @@ export default function DashboardPage() {
             <RunnerMap runners={runners} selectedId={selectedId} trail={trail} onSelect={(runnerId) => setSelectedId(runnerId || null)} />
           </div>
         </Card>
+
+        <div className="order-3 md:col-span-12">
+          <TaskBoard tasks={boardTasks} tab={taskTab} onTabChange={setTaskTab} runners={runners} onSelectRunner={setSelectedId} />
+        </div>
       </main>
 
       {formMode && (
