@@ -25,14 +25,16 @@ interface Props {
   selectedId: string | null;
   trail: Array<[number, number]>;
   onSelect: (runnerId: string) => void;
+  viewerLocation: { lat: number; lon: number } | null;
 }
 
-export default function RunnerMap({ runners, selectedId, trail, onSelect }: Props) {
+export default function RunnerMap({ runners, selectedId, trail, onSelect, viewerLocation }: Props) {
   const initialCenter = useMemo<[number, number]>(() => {
     const list = Object.values(runners).filter((runner) => runner.hasLocation && getRunnerStatus(runner) === "live");
     if (list.length > 0) return [list[0].lat!, list[0].lon!];
+    if (viewerLocation) return [viewerLocation.lat, viewerLocation.lon];
     return [37.7749, -122.4194]; // San Francisco fallback
-  }, [runners]);
+  }, [runners, viewerLocation]);
 
   const selected = selectedId ? runners[selectedId] ?? null : null;
   const liveRunners = Object.values(runners).filter((runner) => runner.hasLocation && getRunnerStatus(runner) === "live");
@@ -43,7 +45,7 @@ export default function RunnerMap({ runners, selectedId, trail, onSelect }: Prop
 
   return (
     <APIProvider apiKey={googleMapsApiKey}>
-      <Map defaultCenter={{ lat: initialCenter[0], lng: initialCenter[1] }} defaultZoom={13} mapId={googleMapsMapId} className="h-full w-full rounded-2xl" style={{ minHeight: 400 }} gestureHandling="greedy">
+      <Map center={{ lat: initialCenter[0], lng: initialCenter[1] }} zoom={selected ? 16 : 13} mapId={googleMapsMapId} className="h-full w-full rounded-2xl" style={{ minHeight: 400 }} gestureHandling="greedy">
         {liveRunners.map((r) => (
           <AdvancedMarker
           key={r.runnerId}
