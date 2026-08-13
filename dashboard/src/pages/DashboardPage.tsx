@@ -197,9 +197,9 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-panel text-ink flex flex-col">
-      <section className="grid grid-cols-2 gap-3 px-4 pt-4 md:grid-cols-4 md:px-7"><Metric label="Live runners" value={statusCounts.live} tone="bg-emerald-100 text-emerald-800" /><Metric label="Idle runners" value={statusCounts.idle} tone="bg-sky-100 text-sky-800" /><Metric label="Needs attention" value={statusCounts.stale} tone="bg-amber-100 text-amber-800" /><Metric label="Offline" value={statusCounts.offline} tone="bg-slate-200 text-slate-700" /></section>
+      <section className="grid grid-cols-2 gap-2 px-4 pt-4 sm:gap-3 lg:grid-cols-4 lg:px-7"><Metric label="Live runners" value={statusCounts.live} tone="bg-emerald-100 text-emerald-800" /><Metric label="Idle runners" value={statusCounts.idle} tone="bg-sky-100 text-sky-800" /><Metric label="Needs attention" value={statusCounts.stale} tone="bg-amber-100 text-amber-800" /><Metric label="Offline" value={statusCounts.offline} tone="bg-slate-200 text-slate-700" /></section>
 
-      <main className="flex-1 grid grid-cols-1 gap-4 p-4 lg:grid-cols-[25fr_40fr_30fr] lg:px-7 lg:pb-7">
+      <main className="flex-1 grid grid-cols-1 gap-3 p-4 sm:gap-4 lg:grid-cols-[25fr_40fr_30fr] lg:px-7 lg:pb-7">
         <Card className="order-1 min-w-0 overflow-hidden rounded-[24px] border border-[#e3e1e9] bg-surface shadow-sm" color="default">
           <div className="flex items-center justify-between border-b border-[#e3e1e9] px-5 py-4"><div><div className="text-sm font-semibold">Available runners</div><p className="mt-0.5 text-xs text-on-surface-variant">Live tracking now</p></div><span className="rounded-full bg-[#e9efff] px-2.5 py-1 text-xs font-semibold text-accent">{statusCounts.live}</span></div>
           <RunnerList
@@ -225,14 +225,14 @@ export default function DashboardPage() {
       </main>
 
       {formMode && (
-        <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center bg-black/60 p-3">
-          <form onSubmit={saveRunner} className="w-full max-w-md rounded-[28px] bg-surface p-6 shadow-2xl">
-            <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="fixed inset-0 z-[1400] flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4">
+          <form onSubmit={saveRunner} className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-[28px] bg-surface p-5 shadow-2xl sm:rounded-[28px] sm:p-6">
+            <div className="sticky -top-5 z-10 -mx-5 mb-4 flex items-start justify-between gap-3 bg-surface px-5 pb-3 pt-5 sm:-top-6 sm:-mx-6 sm:px-6 sm:pt-6">
               <div>
                 <h2 className="font-semibold">{formMode === "create" ? "Add runner" : "Edit runner name"}</h2>
                 <p className="text-xs text-on-surface-variant mt-1">{formMode === "create" ? "The runner is assigned to your dashboard automatically." : "This is the name shown on the dashboard and map."}</p>
               </div>
-              <button type="button" onClick={() => setFormMode(null)} className="text-on-surface-variant" aria-label="Close">×</button>
+              <button type="button" onClick={() => setFormMode(null)} className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-2xl text-on-surface-variant hover:bg-[#f0eff6]" aria-label="Close">×</button>
             </div>
             <label className="block text-sm mb-1">Display name</label>
             <input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2 focus:outline-none focus:border-accent" value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} required minLength={2} maxLength={80} />
@@ -251,9 +251,9 @@ export default function DashboardPage() {
         </div>
       )}
       {taskRunner && (
-        <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center bg-black/60 p-3">
-          <form onSubmit={saveTask} className="w-full max-w-lg rounded-[28px] bg-surface p-6 shadow-2xl max-h-[95vh] overflow-y-auto">
-            <div className="mb-4 flex items-center justify-between gap-3"><div><h2 className="font-semibold">{editingTask ? `Edit task for ${taskRunner.displayName}` : `Assign task to ${taskRunner.displayName}`}</h2><p className="text-xs text-on-surface-variant mt-1">{editingTask ? "This task can be changed until the runner acknowledges it." : "The runner receives this immediately when connected, and it remains available after reconnecting."}</p></div><button type="button" onClick={() => { setTaskRunner(null); setEditingTask(null); }} className="text-on-surface-variant">×</button></div>
+        <div className="fixed inset-0 z-[1400] flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4">
+          <form onSubmit={saveTask} className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-[28px] bg-surface p-5 shadow-2xl sm:rounded-[28px] sm:p-6">
+            <div className="sticky -top-5 z-10 -mx-5 mb-4 flex items-start justify-between gap-3 bg-surface px-5 pb-3 pt-5 sm:-top-6 sm:-mx-6 sm:px-6 sm:pt-6"><div><h2 className="font-semibold">{editingTask ? `Edit task for ${taskRunner.displayName}` : `Assign task to ${taskRunner.displayName}`}</h2><p className="text-xs text-on-surface-variant mt-1">{editingTask ? "This task can be changed until the runner acknowledges it." : "The runner receives this immediately when connected, and it remains available after reconnecting."}</p></div><button type="button" onClick={() => { setTaskRunner(null); setEditingTask(null); }} className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-2xl text-on-surface-variant hover:bg-[#f0eff6]" aria-label="Close task form">×</button></div>
             <label className="block text-sm mb-1">Client name</label><input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" required value={taskForm.clientName} onChange={(e) => setTaskForm({ ...taskForm, clientName: e.target.value })} />
             <AddressPicker value={taskForm.destinationLat != null && taskForm.destinationLon != null ? { address: taskForm.clientAddress, lat: taskForm.destinationLat, lon: taskForm.destinationLon } : null} onChange={(pin: AddressPin) => setTaskForm({ ...taskForm, clientAddress: pin.address, destinationLat: pin.lat, destinationLon: pin.lon })} />
             <label className="block text-sm mb-1">Phone number</label><input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" required value={taskForm.clientPhone} onChange={(e) => setTaskForm({ ...taskForm, clientPhone: e.target.value })} />
@@ -271,5 +271,5 @@ export default function DashboardPage() {
 }
 
 function Metric({ label, value, tone }: { label: string; value: number; tone: string }) {
-  return <div className="rounded-2xl border border-[#e3e1e9] bg-surface px-4 py-3 shadow-sm"><div className="text-xs text-on-surface-variant">{label}</div><div className="mt-1 flex items-center gap-2"><span className="text-2xl font-semibold">{value}</span><span className={`h-2 w-2 rounded-full ${tone.split(" ")[0]}`} /></div></div>;
+  return <div className="min-w-0 rounded-2xl border border-[#e3e1e9] bg-surface px-3 py-3 shadow-sm sm:px-4"><div className="truncate text-xs text-on-surface-variant">{label}</div><div className="mt-1 flex items-center gap-2"><span className="text-xl font-semibold sm:text-2xl">{value}</span><span className={`h-2 w-2 shrink-0 rounded-full ${tone.split(" ")[0]}`} /></div></div>;
 }
