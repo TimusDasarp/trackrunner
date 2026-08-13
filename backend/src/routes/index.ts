@@ -155,14 +155,16 @@ async function getTask(taskId: string, organizationId: string) {
 }
 
 apiRouter.get("/runners", requireDispatcher, async (_req: any, res) => {
+  const includeArchived = _req.query.includeArchived === "true";
   const { rows: assignments } = await pool.query(
     `SELECT runner.id, runner.display_name, runner.email
+           , assignment.active
      FROM runner_assignments assignment
      JOIN users runner ON runner.id = assignment.runner_id
      WHERE assignment.dispatcher_id = $1
        AND assignment.organization_id = $2
-       AND assignment.active = true
-     ORDER BY runner.display_name ASC`,
+       ${includeArchived ? "" : "AND assignment.active = true"}
+     ORDER BY assignment.active DESC, runner.display_name ASC`,
     [_req.user.sub, _req.user.organizationId]
   );
   const assignedRunners = new Map(
@@ -177,6 +179,7 @@ apiRouter.get("/runners", requireDispatcher, async (_req: any, res) => {
     if (!state || String(state.organizationId) !== String(_req.user.organizationId)) {
       return {
         runnerId, displayName: runner.display_name, email: runner.email,
+        assignmentActive: runner.active,
         online: online.has(runnerId), trackingActive: false, status: online.has(runnerId) ? "idle" : "offline",
         hasLocation: false,
       };
@@ -188,6 +191,7 @@ apiRouter.get("/runners", requireDispatcher, async (_req: any, res) => {
       runnerId,
       displayName: runner.display_name,
       email: runner.email,
+      assignmentActive: runner.active,
       lat: Number(state.lat),
       lon: Number(state.lon),
       accuracy: state.accuracy ? Number(state.accuracy) : null,
@@ -294,6 +298,30 @@ apiRouter.get("/runners/:id/history", requireDispatcher, async (req: any, res) =
     [id, req.user.organizationId, req.user.sub, limit]
   );
   res.json({ runnerId: id, points: rows.reverse() });
+});
+
+// Archive a runner from this dispatcher's workspace without deleting their
+// task/location history. The assignment can be restored later.
+apiRouter.delete("/runners/:id", requireDispatcher, async (req: any, res) => {
+  const { rows } = await pool.query(
+    `UPDATE runner_assignments SET active = false
+     WHERE runner_id = $1 AND dispatcher_id = $2 AND organization_id = $3 AND active = true
+     RETURNING runner_id`,
+    [req.params.id, req.user.sub, req.user.organizationId]
+  );
+  if (!rows[0]) return res.status(404).json({ error: "active runner not found" });
+  res.json({ ok: true, runnerId: String(rows[0].runner_id) });
+});
+
+apiRouter.post("/runners/:id/restore", requireDispatcher, async (req: any, res) => {
+  const { rows } = await pool.query(
+    `UPDATE runner_assignments SET active = true
+     WHERE runner_id = $1 AND dispatcher_id = $2 AND organization_id = $3 AND active = false
+     RETURNING runner_id`,
+    [req.params.id, req.user.sub, req.user.organizationId]
+  );
+  if (!rows[0]) return res.status(404).json({ error: "archived runner not found" });
+  res.json({ ok: true, runnerId: String(rows[0].runner_id) });
 });
 
 apiRouter.get("/document-types", requireDispatcher, async (req: any, res) => {

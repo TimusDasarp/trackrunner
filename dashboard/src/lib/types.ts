@@ -1,6 +1,7 @@
 export interface User {
   id: string;
   email: string;
+  assignmentActive?: boolean;
   role: "runner" | "dispatcher";
   displayName: string;
 }
@@ -21,6 +22,7 @@ export interface RunnerState {
   runnerId: string;
   displayName: string;
   email: string;
+  assignmentActive?: boolean;
   online: boolean;
   trackingActive: boolean;
   status: RunnerStatus;
