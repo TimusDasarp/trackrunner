@@ -13,7 +13,7 @@ export default function AppShell() {
       <Toolbar sx={{ minHeight: { xs: 64, sm: 72 }, px: { xs: 2, md: 4 }, gap: 1.5, flexWrap: "wrap" }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, mr: { md: 2 } }}><Box sx={{ display: "grid", placeItems: "center", width: 36, height: 36, borderRadius: 2, bgcolor: "#405f90", color: "white", fontWeight: 800 }}>↗</Box><Box><Typography fontWeight={700} lineHeight={1.1}>TrackRunner</Typography><Typography variant="caption" color="text.secondary">Dispatcher workspace</Typography></Box></Box>
         <Box component="nav" sx={{ display: "flex", order: { xs: 3, sm: 2 }, width: { xs: "100%", sm: "auto" }, gap: .5 }}>
-          <NavButton to="/dashboard" label="Dashboard" /><NavButton to="/runners" label="Manage runners" />
+          <NavButton to="/dashboard" label="Dashboard" /><NavButton to="/runners" label="Runners" /><NavButton to="/analytics" label="Analytics" /><NavButton to="/shifts" label="Shifts" />
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, ml: { sm: "auto" }, order: { xs: 2, sm: 3 } }}><Chip size="small" label={connected ? "Live connection" : "Reconnecting"} sx={{ display: { xs: "none", md: "inline-flex" }, bgcolor: connected ? "#dcfce7" : "#fef3c7", color: connected ? "#166534" : "#92400e", fontWeight: 600 }} /><Button onClick={signOut} size="small" color="inherit">Sign out</Button></Box>
       </Toolbar>

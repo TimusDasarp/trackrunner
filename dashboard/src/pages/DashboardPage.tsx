@@ -11,11 +11,11 @@ import { getRunnerStatus, type RunnerState } from "../lib/types";
 import { Card } from "@material-tailwind/react";
 
 type RunnerForm = { email: string; password: string; displayName: string };
-type TaskForm = { clientName: string; clientAddress: string; clientPhone: string; notes: string; documents: string[]; customDocument: string; destinationLat?: number; destinationLon?: number };
+type TaskForm = { clientName: string; clientAddress: string; clientPhone: string; notes: string; documents: string[]; customDocument: string; priority: "low" | "normal" | "high" | "urgent"; dueAt: string; destinationLat?: number; destinationLon?: number };
 type DashboardTask = BoardTask;
 
 const emptyRunnerForm: RunnerForm = { email: "", password: "", displayName: "" };
-const emptyTaskForm: TaskForm = { clientName: "", clientAddress: "", clientPhone: "", notes: "", documents: [], customDocument: "" };
+const emptyTaskForm: TaskForm = { clientName: "", clientAddress: "", clientPhone: "", notes: "", documents: [], customDocument: "", priority: "normal", dueAt: "" };
 
 export default function DashboardPage() {
   const { runners, refresh } = useRunners();
@@ -138,7 +138,7 @@ export default function DashboardPage() {
     const runner = runners[task.runnerId];
     if (!runner) return;
     setTaskRunner(runner); setEditingTask(task); setTaskError(null);
-    setTaskForm({ clientName: task.clientName, clientAddress: task.clientAddress, clientPhone: task.clientPhone ?? "", notes: task.notes ?? "", documents: task.documents?.map((document) => document.name) ?? [], customDocument: "", destinationLat: task.destinationLat, destinationLon: task.destinationLon });
+    setTaskForm({ clientName: task.clientName, clientAddress: task.clientAddress, clientPhone: task.clientPhone ?? "", notes: task.notes ?? "", documents: task.documents?.map((document) => document.name) ?? [], customDocument: "", priority: (task.priority as TaskForm["priority"]) ?? "normal", dueAt: task.dueAt ? new Date(task.dueAt).toISOString().slice(0,16) : "", destinationLat: task.destinationLat, destinationLon: task.destinationLon });
     try { const data = await api<{ documentTypes: Array<{ name: string }> }>("/api/document-types"); setDocumentTypes(data.documentTypes.map((item) => item.name)); }
     catch { setDocumentTypes([]); }
   }
@@ -163,8 +163,9 @@ export default function DashboardPage() {
     if (!documents.length) return setTaskError("Select or add at least one document.");
     setFormBusy(true); setTaskError(null);
     try {
-      if (editingTask) await api(`/api/tasks/${editingTask.id}`, { method: "PATCH", body: JSON.stringify({ ...taskForm, documents }) });
-      else await api(`/api/runners/${taskRunner.runnerId}/tasks`, { method: "POST", body: JSON.stringify({ ...taskForm, documents }) });
+      const payload = { ...taskForm, dueAt: taskForm.dueAt ? new Date(taskForm.dueAt).toISOString() : undefined, documents };
+      if (editingTask) await api(`/api/tasks/${editingTask.id}`, { method: "PATCH", body: JSON.stringify(payload) });
+      else await api(`/api/runners/${taskRunner.runnerId}/tasks`, { method: "POST", body: JSON.stringify(payload) });
       setTaskRunner(null);
       setEditingTask(null);
       setTaskTab("active");
@@ -256,6 +257,7 @@ export default function DashboardPage() {
             <label className="block text-sm mb-1">Client name</label><input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" required value={taskForm.clientName} onChange={(e) => setTaskForm({ ...taskForm, clientName: e.target.value })} />
             <AddressPicker value={taskForm.destinationLat != null && taskForm.destinationLon != null ? { address: taskForm.clientAddress, lat: taskForm.destinationLat, lon: taskForm.destinationLon } : null} onChange={(pin: AddressPin) => setTaskForm({ ...taskForm, clientAddress: pin.address, destinationLat: pin.lat, destinationLon: pin.lon })} />
             <label className="block text-sm mb-1">Phone number</label><input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" required value={taskForm.clientPhone} onChange={(e) => setTaskForm({ ...taskForm, clientPhone: e.target.value })} />
+            <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="text-sm">Priority<select className="mt-1 w-full rounded-xl border border-[#777680] bg-transparent px-3 py-2" value={taskForm.priority} onChange={(e) => setTaskForm({ ...taskForm, priority: e.target.value as TaskForm["priority"] })}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label><label className="text-sm">Due time <span className="text-on-surface-variant">(optional)</span><input type="datetime-local" className="mt-1 w-full rounded-xl border border-[#777680] bg-transparent px-3 py-2" value={taskForm.dueAt} onChange={(e) => setTaskForm({ ...taskForm, dueAt: e.target.value })} /></label></div>
             <label className="block text-sm mb-2">Documents to collect</label><div className="grid grid-cols-2 gap-2 mb-3">{documentTypes.map((name) => <label key={name} className="flex items-center gap-2 text-sm text-on-surface-variant"><input className="accent-[#405f90]" type="checkbox" checked={taskForm.documents.includes(name)} onChange={(e) => setTaskForm({ ...taskForm, documents: e.target.checked ? [...taskForm.documents, name] : taskForm.documents.filter((item) => item !== name) })} />{name}</label>)}</div>
             <input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" placeholder="Other document (optional)" value={taskForm.customDocument} onChange={(e) => setTaskForm({ ...taskForm, customDocument: e.target.value })} />
             <label className="block text-sm mb-1">Notes (optional)</label><textarea className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" value={taskForm.notes} onChange={(e) => setTaskForm({ ...taskForm, notes: e.target.value })} />

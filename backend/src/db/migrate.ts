@@ -98,6 +98,22 @@ CREATE TABLE IF NOT EXISTS runner_tasks (
 CREATE INDEX IF NOT EXISTS idx_runner_tasks_runner_status ON runner_tasks (runner_id, status, created_at DESC);
 ALTER TABLE runner_tasks ADD COLUMN IF NOT EXISTS destination_lat DOUBLE PRECISION;
 ALTER TABLE runner_tasks ADD COLUMN IF NOT EXISTS destination_lon DOUBLE PRECISION;
+ALTER TABLE runner_tasks ADD COLUMN IF NOT EXISTS priority TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN ('low','normal','high','urgent'));
+ALTER TABLE runner_tasks ADD COLUMN IF NOT EXISTS due_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS task_events (
+  id BIGSERIAL PRIMARY KEY, organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  task_id BIGINT NOT NULL REFERENCES runner_tasks(id) ON DELETE CASCADE, actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  event_type TEXT NOT NULL, occurred_at TIMESTAMPTZ NOT NULL DEFAULT now(), metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX IF NOT EXISTS idx_task_events_task_time ON task_events (task_id, occurred_at);
+
+CREATE TABLE IF NOT EXISTS runner_shifts (
+  id BIGSERIAL PRIMARY KEY, organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  runner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT, started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ended_at TIMESTAMPTZ, status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','ended'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_runner_active_shift ON runner_shifts(runner_id) WHERE status = 'active';
 
 CREATE TABLE IF NOT EXISTS runner_task_documents (
   id BIGSERIAL PRIMARY KEY,

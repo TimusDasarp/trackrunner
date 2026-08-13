@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export type Task = { id: string; runnerId: string; clientName: string; clientAddress: string; clientPhone?: string; notes?: string; destinationLat?: number; destinationLon?: number; status: string; documents?: Array<{ name: string }> };
+export type Task = { id: string; runnerId: string; clientName: string; clientAddress: string; clientPhone?: string; notes?: string; destinationLat?: number; destinationLon?: number; status: string; priority?: string; dueAt?: string; documents?: Array<{ name: string }> };
 
 interface Props {
   tasks: Task[];

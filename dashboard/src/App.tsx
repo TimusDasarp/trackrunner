@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import ManageRunnersPage from "./pages/ManageRunnersPage";
+import AnalyticsPage from "./pages/AnalyticsPage";
+import ShiftsPage from "./pages/ShiftsPage";
 import { getToken } from "./lib/auth";
 import AppShell from "./components/AppShell";
 
@@ -17,6 +19,8 @@ export default function App() {
       <Route element={<RequireAuth><AppShell /></RequireAuth>}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/runners" element={<ManageRunnersPage />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/shifts" element={<ShiftsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

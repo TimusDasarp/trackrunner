@@ -36,6 +36,8 @@ const CreateTaskSchema = z.object({
   documents: z.array(z.string().trim().min(1).max(120)).min(1).max(30),
   destinationLat: z.number().min(-90).max(90).optional(),
   destinationLon: z.number().min(-180).max(180).optional(),
+  priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
+  dueAt: z.string().datetime().optional(),
 }).refine((value) => (value.destinationLat == null) === (value.destinationLon == null), {
   message: "destination coordinates must be provided together",
 });
@@ -119,8 +121,12 @@ function taskDto(row: any) {
     id: String(row.id), runnerId: String(row.runner_id), clientName: row.client_name,
     clientAddress: row.client_address, clientPhone: row.client_phone, notes: row.notes,
     status: row.status, destinationLat: row.destination_lat, destinationLon: row.destination_lon, createdAt: row.created_at, acknowledgedAt: row.acknowledged_at,
-    startedAt: row.started_at, completedAt: row.completed_at,
+    startedAt: row.started_at, completedAt: row.completed_at, priority: row.priority, dueAt: row.due_at,
   };
+}
+
+async function recordTaskEvent(organizationId: string, taskId: string, actorId: string, eventType: string, metadata: Record<string, unknown> = {}) {
+  await pool.query("INSERT INTO task_events (organization_id, task_id, actor_id, event_type, metadata) VALUES ($1,$2,$3,$4,$5)", [organizationId, taskId, actorId, eventType, JSON.stringify(metadata)]);
 }
 
 apiRouter.put("/devices/push-token", requireUser, async (req: any, res) => {
@@ -347,9 +353,10 @@ apiRouter.post("/runners/:id/tasks", requireDispatcher, async (req: any, res) =>
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const { rows } = await client.query(`INSERT INTO runner_tasks (organization_id, dispatcher_id, runner_id, client_name, client_address, client_phone, notes, destination_lat, destination_lon) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`, [req.user.organizationId, req.user.sub, runnerId, parsed.data.clientName, parsed.data.clientAddress, parsed.data.clientPhone, parsed.data.notes || null, parsed.data.destinationLat ?? null, parsed.data.destinationLon ?? null]);
+    const { rows } = await client.query(`INSERT INTO runner_tasks (organization_id, dispatcher_id, runner_id, client_name, client_address, client_phone, notes, destination_lat, destination_lon, priority, due_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`, [req.user.organizationId, req.user.sub, runnerId, parsed.data.clientName, parsed.data.clientAddress, parsed.data.clientPhone, parsed.data.notes || null, parsed.data.destinationLat ?? null, parsed.data.destinationLon ?? null, parsed.data.priority, parsed.data.dueAt ?? null]);
     for (const document of [...new Set(parsed.data.documents)]) await client.query(`INSERT INTO runner_task_documents (task_id, name) VALUES ($1, $2)`, [rows[0].id, document]);
     await client.query("COMMIT");
+    await recordTaskEvent(req.user.organizationId, String(rows[0].id), req.user.sub, "created", { priority: parsed.data.priority, dueAt: parsed.data.dueAt ?? null });
     const task = await getTask(String(rows[0].id), String(req.user.organizationId));
     req.app.get("io").to(`runner:${runnerId}`).emit("task:created", task);
     req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${runnerId}`).emit("task:created", task);
@@ -386,11 +393,11 @@ apiRouter.patch("/tasks/:id", requireUser, async (req: any, res) => {
     if (!parsed.success) return res.status(400).json({ error: "invalid task update" });
     const { rows } = await pool.query(
       `UPDATE runner_tasks SET client_name = $1, client_address = $2, client_phone = $3, notes = $4,
-       destination_lat = $5, destination_lon = $6
-       WHERE id = $7 AND organization_id = $8 AND dispatcher_id = $9 AND status = 'sent'
+       destination_lat = $5, destination_lon = $6, priority = $7, due_at = $8
+       WHERE id = $9 AND organization_id = $10 AND dispatcher_id = $11 AND status = 'sent'
        RETURNING id`,
       [parsed.data.clientName, parsed.data.clientAddress, parsed.data.clientPhone, parsed.data.notes || null,
-        parsed.data.destinationLat ?? null, parsed.data.destinationLon ?? null, req.params.id,
+        parsed.data.destinationLat ?? null, parsed.data.destinationLon ?? null, parsed.data.priority, parsed.data.dueAt ?? null, req.params.id,
         req.user.organizationId, req.user.sub]
     );
     if (!rows[0]) return res.status(409).json({ error: "only unacknowledged tasks can be edited" });
@@ -399,6 +406,7 @@ apiRouter.patch("/tasks/:id", requireUser, async (req: any, res) => {
       await pool.query("INSERT INTO runner_task_documents (task_id, name) VALUES ($1, $2)", [req.params.id, document]);
     }
     const updated = await getTask(String(req.params.id), String(req.user.organizationId));
+    await recordTaskEvent(req.user.organizationId, String(req.params.id), req.user.sub, "edited");
     req.app.get("io").to(`runner:${updated!.runnerId}`).emit("task:updated", updated);
     req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${updated!.runnerId}`).emit("task:updated", updated);
     return res.json({ task: updated });
@@ -412,9 +420,41 @@ apiRouter.patch("/tasks/:id", requireUser, async (req: any, res) => {
   await pool.query(`UPDATE runner_tasks SET status = $1${timeField ? `, ${timeField} = COALESCE(${timeField}, now())` : ""} WHERE id = $2`, [parsed.data.status, task.id]);
   for (const doc of parsed.data.documents ?? []) await pool.query(`UPDATE runner_task_documents SET collected = $1, collected_at = CASE WHEN $1 THEN COALESCE(collected_at, now()) ELSE NULL END WHERE id = $2 AND task_id = $3`, [doc.collected, doc.id, task.id]);
   const updated = await getTask(task.id, String(req.user.organizationId));
+  await recordTaskEvent(req.user.organizationId, task.id, String(req.user.sub), parsed.data.status);
   req.app.get("io").to(`runner:${task.runnerId}`).emit("task:updated", updated);
   req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${task.runnerId}`).emit("task:updated", updated);
   res.json({ task: updated });
+});
+
+apiRouter.get("/analytics/overview", requireDispatcher, async (req: any, res) => {
+  const days = Math.min(Math.max(Number(req.query.days ?? 7), 1), 90);
+  const runnerId = req.query.runnerId ? String(req.query.runnerId) : null;
+  const params: any[] = [req.user.organizationId, req.user.sub, days];
+  const filter = runnerId ? "AND t.runner_id = $4" : "";
+  if (runnerId) params.push(runnerId);
+  const joins = `FROM runner_tasks t JOIN runner_assignments a ON a.runner_id=t.runner_id AND a.dispatcher_id=$2 AND a.organization_id=t.organization_id`;
+  const where = `WHERE t.organization_id=$1 AND t.created_at >= now() - ($3::text || ' days')::interval ${filter}`;
+  const { rows: totals } = await pool.query(`SELECT count(*)::int assigned, count(*) FILTER (WHERE t.status='completed')::int completed, count(*) FILTER (WHERE t.status='unable_to_complete')::int unable, count(*) FILTER (WHERE t.due_at < now() AND t.status NOT IN ('completed','unable_to_complete'))::int overdue, percentile_cont(.5) WITHIN GROUP (ORDER BY extract(epoch FROM t.acknowledged_at-t.created_at)) FILTER (WHERE t.acknowledged_at IS NOT NULL) median_ack_seconds, percentile_cont(.5) WITHIN GROUP (ORDER BY extract(epoch FROM t.completed_at-t.created_at)) FILTER (WHERE t.completed_at IS NOT NULL) median_cycle_seconds ${joins} ${where}`, params);
+  const { rows: byRunner } = await pool.query(`SELECT t.runner_id::text runner_id, u.display_name, count(*)::int assigned, count(*) FILTER (WHERE t.status='completed')::int completed, percentile_cont(.5) WITHIN GROUP (ORDER BY extract(epoch FROM t.completed_at-t.created_at)) FILTER (WHERE t.completed_at IS NOT NULL) median_cycle_seconds ${joins} JOIN users u ON u.id=t.runner_id ${where} GROUP BY t.runner_id,u.display_name ORDER BY completed DESC`, params);
+  res.json({ days, totals: totals[0], byRunner });
+});
+
+apiRouter.get("/shifts", requireDispatcher, async (req: any, res) => {
+  const { rows } = await pool.query(`SELECT s.*, u.display_name FROM runner_shifts s JOIN users u ON u.id=s.runner_id JOIN runner_assignments a ON a.runner_id=s.runner_id AND a.dispatcher_id=$2 AND a.organization_id=s.organization_id AND a.active=true WHERE s.organization_id=$1 ORDER BY s.started_at DESC LIMIT 100`, [req.user.organizationId, req.user.sub]);
+  res.json({ shifts: rows.map((s) => ({ id:String(s.id), runnerId:String(s.runner_id), displayName:s.display_name, status:s.status, startedAt:s.started_at, endedAt:s.ended_at })) });
+});
+
+apiRouter.post("/shifts/start", requireUser, async (req: any, res) => {
+  if (req.user.role !== "runner") return res.status(403).json({ error: "forbidden" });
+  const { rows } = await pool.query("INSERT INTO runner_shifts (organization_id, runner_id) VALUES ($1,$2) ON CONFLICT (runner_id) WHERE status='active' DO UPDATE SET started_at=runner_shifts.started_at RETURNING *", [req.user.organizationId, req.user.sub]);
+  res.json({ shift: rows[0] });
+});
+
+apiRouter.post("/shifts/end", requireUser, async (req: any, res) => {
+  if (req.user.role !== "runner") return res.status(403).json({ error: "forbidden" });
+  const { rows } = await pool.query("UPDATE runner_shifts SET status='ended', ended_at=now() WHERE organization_id=$1 AND runner_id=$2 AND status='active' RETURNING *", [req.user.organizationId, req.user.sub]);
+  if (!rows[0]) return res.status(404).json({ error: "active shift not found" });
+  res.json({ shift: rows[0] });
 });
 
 apiRouter.delete("/tasks/:id", requireDispatcher, async (req: any, res) => {
