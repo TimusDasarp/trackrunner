@@ -6,11 +6,10 @@ import type { LocationUpdate } from "./types";
 let socket: Socket | null = null;
 
 export function getSocket(): Socket {
-  if (socket && socket.connected) return socket;
-  if (socket) {
-    socket.disconnect();
-    socket = null;
-  }
+  // Several dashboard components subscribe during the same render. Keep the
+  // in-flight connection shared; replacing it while `connecting` leaves early
+  // subscribers attached to a discarded socket and the UI stuck reconnecting.
+  if (socket) return socket;
   const token = getToken();
   socket = io(apiBaseUrl || undefined, {
     path: "/socket.io",
