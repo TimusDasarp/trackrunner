@@ -1,0 +1,22 @@
+import { useMemo, useState } from "react";
+import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Paper, Stack, TextField, Typography } from "@mui/material";
+import { useRunners } from "../hooks/useRunners";
+import { api } from "../lib/auth";
+import { getRunnerStatus, type RunnerState } from "../lib/types";
+
+type Form = { email: string; password: string; displayName: string };
+const empty: Form = { email: "", password: "", displayName: "" };
+
+export default function ManageRunnersPage() {
+  const { runners, refresh } = useRunners();
+  const [target, setTarget] = useState<RunnerState | null | undefined>(undefined);
+  const [form, setForm] = useState<Form>(empty);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const list = useMemo(() => Object.values(runners).sort((a, b) => a.displayName.localeCompare(b.displayName)), [runners]);
+  function openCreate() { setTarget(null); setForm(empty); setError(null); }
+  function openEdit(runner: RunnerState) { setTarget(runner); setForm({ displayName: runner.displayName, email: runner.email, password: "" }); setError(null); }
+  async function save(event: React.FormEvent) { event.preventDefault(); setBusy(true); setError(null); try { if (target) await api(`/api/runners/${target.runnerId}`, { method: "PATCH", body: JSON.stringify({ displayName: form.displayName }) }); else await api("/api/runners", { method: "POST", body: JSON.stringify(form) }); await refresh(); setTarget(undefined); } catch (err: any) { setError(err.message ?? "Could not save runner"); } finally { setBusy(false); } }
+  const dialogOpen = target !== undefined;
+  return <main className="mx-auto w-full max-w-6xl p-4 sm:p-6 lg:p-7"><Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} gap={2} mb={3}><div><Typography variant="h5" fontWeight={700}>Manage runners</Typography><Typography variant="body2" color="text.secondary">Create and update the runners assigned to this dispatcher.</Typography></div><Button variant="contained" onClick={openCreate} sx={{ borderRadius: 99, alignSelf: { xs: "stretch", sm: "auto" } }}>Add runner</Button></Stack><Stack gap={1.5}>{list.map((runner) => <Paper key={runner.runnerId} elevation={0} sx={{ border: "1px solid #e3e1e9", borderRadius: 3, p: 2, display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: { sm: "center" }, gap: 1.5 }}><div style={{ flex: 1, minWidth: 0 }}><Typography fontWeight={700}>{runner.displayName}</Typography><Typography variant="body2" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>{runner.email}</Typography><Typography variant="caption" sx={{ display: "inline-block", mt: .75, px: 1, py: .25, borderRadius: 4, bgcolor: "#e9efff", color: "#405f90", textTransform: "capitalize" }}>{getRunnerStatus(runner)}</Typography></div><Button variant="outlined" onClick={() => openEdit(runner)} sx={{ borderRadius: 99, alignSelf: { xs: "stretch", sm: "center" } }}>Edit details</Button></Paper>)}{list.length === 0 && <Paper elevation={0} sx={{ border: "1px solid #e3e1e9", borderRadius: 3, p: 4, textAlign: "center", color: "text.secondary" }}>No runners yet. Add the first runner to begin tracking.</Paper>}</Stack><Dialog open={dialogOpen} onClose={() => setTarget(undefined)} fullWidth maxWidth="sm" PaperProps={{ component: "form", onSubmit: save, sx: { borderRadius: 4, m: { xs: 2, sm: 4 } } }}><DialogTitle>{target ? "Edit runner details" : "Add runner"}</DialogTitle><DialogContent><Stack gap={2} pt={1}><TextField label="Display name" value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} required fullWidth inputProps={{ minLength: 2, maxLength: 80 }} />{!target && <><TextField label="Runner email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required type="email" fullWidth /><TextField label="Temporary password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required type="password" fullWidth inputProps={{ minLength: 8 }} /></>}{error && <Typography color="error" variant="body2">{error}</Typography>}</Stack></DialogContent><DialogActions sx={{ p: 2, flexDirection: { xs: "column-reverse", sm: "row" } }}><Button onClick={() => setTarget(undefined)} fullWidth={false}>Cancel</Button><Button type="submit" variant="contained" disabled={busy} fullWidth={false}>{busy ? "Saving…" : "Save"}</Button></DialogActions></Dialog></main>;
+}

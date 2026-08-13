@@ -1,7 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { clearSession } from "../lib/auth";
-import { disconnectSocket } from "../lib/socket";
 import { useRunners } from "../hooks/useRunners";
 import RunnerMap from "../components/RunnerMap";
 import RunnerList from "../components/RunnerList";
@@ -11,7 +8,7 @@ import AddressPicker, { type AddressPin } from "../components/AddressPicker";
 import { api } from "../lib/auth";
 import { getSocket } from "../lib/socket";
 import { getRunnerStatus, type RunnerState } from "../lib/types";
-import { Button, Card, Chip } from "@material-tailwind/react";
+import { Card } from "@material-tailwind/react";
 
 type RunnerForm = { email: string; password: string; displayName: string };
 type TaskForm = { clientName: string; clientAddress: string; clientPhone: string; notes: string; documents: string[]; customDocument: string; destinationLat?: number; destinationLon?: number };
@@ -21,8 +18,7 @@ const emptyRunnerForm: RunnerForm = { email: "", password: "", displayName: "" }
 const emptyTaskForm: TaskForm = { clientName: "", clientAddress: "", clientPhone: "", notes: "", documents: [], customDocument: "" };
 
 export default function DashboardPage() {
-  const nav = useNavigate();
-  const { runners, connected, refresh } = useRunners();
+  const { runners, refresh } = useRunners();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [trail, setTrail] = useState<Array<[number, number]>>([]);
   const [history, setHistory] = useState<any[]>([]);
@@ -126,18 +122,6 @@ export default function DashboardPage() {
     { live: 0, stale: 0, idle: 0, offline: 0 } as Record<"live" | "stale" | "idle" | "offline", number>
   ), [runners, now]);
 
-  function logout() {
-    clearSession();
-    disconnectSocket();
-    nav("/login", { replace: true });
-  }
-
-  function openCreate() {
-    setForm(emptyRunnerForm);
-    setFormError(null);
-    setFormMode("create");
-  }
-
   function openRename(runner: RunnerState) {
     setForm({ email: runner.email, password: "", displayName: runner.displayName });
     setFormError(null);
@@ -212,18 +196,6 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-panel text-ink flex flex-col">
-      <header className="sticky top-0 z-50 flex flex-wrap items-center justify-between gap-3 border-b border-[#e3e1e9] bg-surface/90 px-4 py-3 backdrop-blur-md md:px-7">
-        <div className="flex items-center gap-3">
-          <div className="grid h-9 w-9 place-items-center rounded-xl bg-accent font-bold text-white">↗</div>
-          <div><h1 className="font-semibold leading-tight">TrackRunner</h1><p className="text-xs text-on-surface-variant">Dispatcher workspace</p></div>
-          <Chip className={`hidden rounded-full px-3 py-1 text-xs md:block ${connected ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{connected ? "Live connection" : "Reconnecting"}</Chip>
-        </div>
-        <div className="flex items-center gap-4">
-          <Button onClick={openCreate} size="sm" className="rounded-full bg-accent px-4 text-white">Add runner</Button>
-          <button onClick={logout} className="rounded-full px-3 py-2 text-sm font-medium text-on-surface-variant hover:bg-[#f0eff6]">Sign out</button>
-        </div>
-      </header>
-
       <section className="grid grid-cols-2 gap-3 px-4 pt-4 md:grid-cols-4 md:px-7"><Metric label="Live runners" value={statusCounts.live} tone="bg-emerald-100 text-emerald-800" /><Metric label="Idle runners" value={statusCounts.idle} tone="bg-sky-100 text-sky-800" /><Metric label="Needs attention" value={statusCounts.stale} tone="bg-amber-100 text-amber-800" /><Metric label="Offline" value={statusCounts.offline} tone="bg-slate-200 text-slate-700" /></section>
 
       <main className="flex-1 grid grid-cols-1 gap-4 p-4 lg:grid-cols-[25fr_40fr_30fr] lg:px-7 lg:pb-7">

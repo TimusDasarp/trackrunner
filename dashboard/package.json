@@ -9,7 +9,11 @@
     "preview": "vite preview --host 0.0.0.0 --port 5173"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
     "@material-tailwind/react": "^3.0.0-beta.24",
+    "@mui/icons-material": "^5.18.0",
+    "@mui/material": "^5.18.0",
     "@vis.gl/react-google-maps": "^1.9.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
