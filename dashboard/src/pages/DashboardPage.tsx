@@ -184,7 +184,7 @@ export default function DashboardPage() {
       <section className="grid grid-cols-2 gap-3 px-4 pt-4 md:grid-cols-4 md:px-7"><Metric label="Live runners" value={statusCounts.live} tone="bg-emerald-100 text-emerald-800" /><Metric label="Idle runners" value={statusCounts.idle} tone="bg-sky-100 text-sky-800" /><Metric label="Needs attention" value={statusCounts.stale} tone="bg-amber-100 text-amber-800" /><Metric label="Offline" value={statusCounts.offline} tone="bg-slate-200 text-slate-700" /></section>
 
       <main className="flex-1 grid grid-cols-1 gap-4 p-4 md:grid-cols-12 md:px-7 md:pb-7">
-        <Card className="order-1 overflow-hidden rounded-[24px] border border-[#e3e1e9] bg-surface shadow-sm md:col-span-4 lg:col-span-3" color="default">
+        <Card className="order-1 overflow-hidden rounded-[24px] border border-[#e3e1e9] bg-surface shadow-sm md:col-span-4" color="default">
           <div className="flex items-center justify-between border-b border-[#e3e1e9] px-5 py-4"><div><div className="text-sm font-semibold">Available runners</div><p className="mt-0.5 text-xs text-on-surface-variant">Live tracking now</p></div><span className="rounded-full bg-[#e9efff] px-2.5 py-1 text-xs font-semibold text-accent">{statusCounts.live}</span></div>
           <RunnerList
             runners={runners}
@@ -193,7 +193,7 @@ export default function DashboardPage() {
           />
         </Card>
 
-        <Card className="order-2 min-h-[620px] overflow-hidden rounded-[24px] border border-[#e3e1e9] bg-surface shadow-sm md:col-span-8 lg:col-span-9" color="default">
+        <Card className="order-2 flex min-h-[620px] flex-col overflow-hidden rounded-[24px] border border-[#e3e1e9] bg-surface shadow-sm md:col-span-8 lg:col-span-4" color="default">
           <div className="border-b border-[#e3e1e9] shrink-0">
             <div className="px-5 pt-4 text-sm font-semibold">Runner details</div>
             <RunnerDetail runner={selected} trail={trail} onRename={openRename} onCreateTask={openTask} tasks={activeTasks} />
@@ -203,7 +203,7 @@ export default function DashboardPage() {
           </div>
         </Card>
 
-        <div className="order-3 md:col-span-12">
+        <div className="order-3 md:col-span-12 lg:col-span-4">
           <TaskBoard tasks={boardTasks} tab={taskTab} onTabChange={setTaskTab} runners={runners} onSelectRunner={setSelectedId} />
         </div>
       </main>
