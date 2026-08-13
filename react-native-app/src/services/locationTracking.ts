@@ -61,6 +61,28 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
 });
 
 export const LocationTracking = {
+  /**
+   * Capture and upload a foreground fix. Background callbacks are subject to
+   * OS scheduling, so this keeps an open runner app visibly live even when
+   * the device has not moved enough to trigger a background update.
+   */
+  async captureAndSyncCurrentLocation(): Promise<boolean> {
+    const location = await this.getCurrentLocation();
+    if (!location) return false;
+
+    await LocationCache.saveLocation(location, false);
+    if (!socketClient.isConnected()) {
+      try {
+        await socketClient.connect();
+      } catch (error) {
+        console.warn('[Tracking] Foreground location buffered for retry:', error);
+        return false;
+      }
+    }
+    await SyncService.syncPendingLocations();
+    return true;
+  },
+
   async requestPermissions(): Promise<boolean> {
     const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
     if (foregroundStatus !== 'granted') {
@@ -110,20 +132,7 @@ export const LocationTracking = {
     // especially when a newly started device has not moved yet. Capture one
     // foreground fix so the runner is visible on the dispatcher map as soon
     // as tracking is turned on, then let the background task handle updates.
-    const initialLocation = await this.getCurrentLocation();
-    if (initialLocation) {
-      await LocationCache.saveLocation(initialLocation, false);
-      if (!socketClient.isConnected()) {
-        try {
-          await socketClient.connect();
-        } catch (error) {
-          console.warn('[Tracking] Initial location buffered for retry:', error);
-        }
-      }
-      if (socketClient.isConnected()) {
-        await SyncService.syncPendingLocations();
-      }
-    }
+    await this.captureAndSyncCurrentLocation();
 
     return true;
   },

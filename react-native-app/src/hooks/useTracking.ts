@@ -3,6 +3,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
+import { AppState } from 'react-native';
 import { LocationTracking } from '../services/locationTracking';
 import { SyncService } from '../services/syncService';
 import { socketClient } from '../services/socketClient';
@@ -14,8 +15,36 @@ export function useTracking() {
   const [pendingCount, setPendingCount] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
 
+  async function refreshPendingCount() {
+    const count = await SyncService.getPendingCount();
+    setPendingCount(count);
+  }
+
+  const startAutomatically = useCallback(async () => {
+    await LocationTracking.startTracking();
+    setIsTracking(true);
+    setIsConnected(socketClient.isConnected());
+    await refreshPendingCount();
+  }, []);
+
   useEffect(() => {
-    checkStatus();
+    let active = true;
+    const initialiseTracking = async () => {
+      try {
+        const tracking = await LocationTracking.isTracking();
+        if (!tracking) await startAutomatically();
+        else {
+          await socketClient.setTrackingActive(true);
+          if (active) setIsTracking(true);
+        }
+      } catch (err) {
+        console.warn('[Tracking] Automatic start failed:', err);
+      } finally {
+        if (active) setIsConnected(socketClient.isConnected());
+        await refreshPendingCount();
+      }
+    };
+    void initialiseTracking();
 
     // Subscribe to dynamic socket connection state changes
     const onConnectionChange = (connected: boolean) => {
@@ -27,42 +56,36 @@ export function useTracking() {
     const interval = setInterval(refreshPendingCount, 5000);
 
     return () => {
+      active = false;
       socketClient.removeConnectionListener(onConnectionChange);
       clearInterval(interval);
     };
-  }, []);
+  }, [startAutomatically]);
 
-  async function checkStatus() {
-    const tracking = await LocationTracking.isTracking();
-    setIsTracking(tracking);
-    await socketClient.setTrackingActive(tracking);
-    setIsConnected(socketClient.isConnected());
-    await refreshPendingCount();
-  }
+  useEffect(() => {
+    let running = false;
+    const sendForegroundFix = async () => {
+      if (running || AppState.currentState !== 'active') return;
+      running = true;
+      try {
+        await LocationTracking.captureAndSyncCurrentLocation();
+      } catch (err) {
+        console.warn('[Tracking] Foreground GPS sync failed:', err);
+      } finally {
+        running = false;
+        await refreshPendingCount();
+      }
+    };
 
-  async function refreshPendingCount() {
-    const count = await SyncService.getPendingCount();
-    setPendingCount(count);
-  }
-
-  const startTracking = useCallback(async () => {
-    try {
-      await LocationTracking.startTracking();
-      setIsTracking(true);
-    } catch (err) {
-      console.error('[Tracking] Start failed:', err);
-      throw err;
-    }
-  }, []);
-
-  const stopTracking = useCallback(async () => {
-    try {
-      await LocationTracking.stopTracking();
-      setIsTracking(false);
-    } catch (err) {
-      console.error('[Tracking] Stop failed:', err);
-      throw err;
-    }
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void sendForegroundFix();
+    });
+    void sendForegroundFix();
+    const interval = setInterval(() => void sendForegroundFix(), 30_000);
+    return () => {
+      subscription.remove();
+      clearInterval(interval);
+    };
   }, []);
 
   const syncNow = useCallback(async () => {
@@ -76,8 +99,6 @@ export function useTracking() {
     lastLocation,
     pendingCount,
     isConnected,
-    startTracking,
-    stopTracking,
     syncNow,
     refreshPendingCount,
   };
