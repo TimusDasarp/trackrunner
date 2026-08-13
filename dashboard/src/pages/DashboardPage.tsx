@@ -184,7 +184,7 @@ export default function DashboardPage() {
             <RunnerDetail runner={selected} trail={trail} onRename={openRename} onCreateTask={openTask} tasks={activeTasks} />
           </div>
           <div className="min-h-[400px] flex-1 p-3 pt-0">
-            <RunnerMap runners={runners} selectedId={selectedId} trail={trail} />
+            <RunnerMap runners={runners} selectedId={selectedId} trail={trail} onSelect={(runnerId) => setSelectedId(runnerId || null)} />
           </div>
         </Card>
       </main>

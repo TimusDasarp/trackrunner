@@ -1,29 +1,22 @@
-import { useMemo } from "react";
-import L from "leaflet";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
+import { useEffect, useMemo } from "react";
+import { AdvancedMarker, APIProvider, InfoWindow, Map, Pin, Polyline, useMap } from "@vis.gl/react-google-maps";
+import { googleMapsApiKey, googleMapsMapId, hasGoogleMapsConfig } from "../lib/config";
 import { getRunnerStatus, type RunnerState } from "../lib/types";
 
-function makeIcon(state: RunnerState, selected: boolean) {
+function markerColor(state: RunnerState) {
   const battery = state.battery ?? null;
-  let cls = "dot";
-  if (getRunnerStatus(state) !== "live") cls += " offline";
-  else cls += " online";
-  if (battery != null && battery < 15) cls += " critical";
-  else if (battery != null && battery < 30) cls += " low";
-  if (selected) cls += " selected";
-  return L.divIcon({
-    className: "runner-icon",
-    html: `<div class="${cls}"></div>`,
-    iconSize: selected ? [20, 20] : [16, 16],
-    iconAnchor: selected ? [10, 10] : [8, 8],
-  });
+  if (battery != null && battery < 15) return "#dc2626";
+  if (battery != null && battery < 30) return "#d97706";
+  return getRunnerStatus(state) === "live" ? "#405f90" : "#64748b";
 }
 
 function FlyToRunner({ runner }: { runner: RunnerState | null }) {
   const map = useMap();
-  if (runner?.hasLocation) {
-    map.flyTo([runner.lat!, runner.lon!], 16, { duration: 0.8 });
-  }
+  useEffect(() => {
+    if (!map || !runner?.hasLocation) return;
+    map.panTo({ lat: runner.lat!, lng: runner.lon! });
+    map.setZoom(16);
+  }, [map, runner?.runnerId, runner?.lat, runner?.lon, runner?.hasLocation]);
   return null;
 }
 
@@ -31,9 +24,10 @@ interface Props {
   runners: Record<string, RunnerState>;
   selectedId: string | null;
   trail: Array<[number, number]>;
+  onSelect: (runnerId: string) => void;
 }
 
-export default function RunnerMap({ runners, selectedId, trail }: Props) {
+export default function RunnerMap({ runners, selectedId, trail, onSelect }: Props) {
   const initialCenter = useMemo<[number, number]>(() => {
     const list = Object.values(runners).filter((runner) => runner.hasLocation && getRunnerStatus(runner) === "live");
     if (list.length > 0) return [list[0].lat!, list[0].lon!];
@@ -41,25 +35,25 @@ export default function RunnerMap({ runners, selectedId, trail }: Props) {
   }, [runners]);
 
   const selected = selectedId ? runners[selectedId] ?? null : null;
+  const liveRunners = Object.values(runners).filter((runner) => runner.hasLocation && getRunnerStatus(runner) === "live");
+
+  if (!hasGoogleMapsConfig) {
+    return <MapSetupNotice />;
+  }
 
   return (
-    <MapContainer
-      center={initialCenter}
-      zoom={13}
-      className="w-full h-full rounded-2xl"
-      style={{ minHeight: 400 }}
-    >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      {Object.values(runners).filter((r) => r.hasLocation && getRunnerStatus(r) === "live").map((r) => (
-        <Marker
+    <APIProvider apiKey={googleMapsApiKey}>
+      <Map defaultCenter={{ lat: initialCenter[0], lng: initialCenter[1] }} defaultZoom={13} mapId={googleMapsMapId} className="h-full w-full rounded-2xl" style={{ minHeight: 400 }} gestureHandling="greedy">
+        {liveRunners.map((r) => (
+          <AdvancedMarker
           key={r.runnerId}
-          position={[r.lat!, r.lon!]}
-          icon={makeIcon(r, selectedId === r.runnerId)}
+          position={{ lat: r.lat!, lng: r.lon! }}
+          onClick={() => onSelect(r.runnerId)}
+          title={`Select ${r.displayName}`}
+          zIndex={selectedId === r.runnerId ? 2 : 1}
         >
-          <Popup>
+          <Pin background={markerColor(r)} borderColor="#ffffff" glyphColor="#ffffff" scale={selectedId === r.runnerId ? 1.25 : 1} />
+          {selectedId === r.runnerId && <InfoWindow position={{ lat: r.lat!, lng: r.lon! }} onCloseClick={() => onSelect("")}>
             <div className="text-sm">
               <div className="font-semibold">{r.displayName}</div>
               <div>Battery: {r.battery != null ? `${Math.round(r.battery)}%` : "—"}</div>
@@ -69,13 +63,18 @@ export default function RunnerMap({ runners, selectedId, trail }: Props) {
                 {new Date(r.ts!).toLocaleTimeString()}
               </div>
             </div>
-          </Popup>
-        </Marker>
+          </InfoWindow>}
+        </AdvancedMarker>
       ))}
       {trail.length > 1 && (
-        <Polyline positions={trail} pathOptions={{ color: "#405f90", weight: 4 }} />
+        <Polyline path={trail.map(([lat, lng]) => ({ lat, lng }))} strokeColor="#405f90" strokeWeight={4} />
       )}
       <FlyToRunner runner={selected} />
-    </MapContainer>
+      </Map>
+    </APIProvider>
   );
+}
+
+export function MapSetupNotice() {
+  return <div className="grid h-full min-h-[400px] place-items-center rounded-2xl bg-[#e8edf6] p-6 text-center text-sm text-on-surface-variant"><div><p className="font-semibold text-ink">Google Maps needs configuration</p><p className="mt-1">Set <code>VITE_GOOGLE_MAPS_API_KEY</code> and <code>VITE_GOOGLE_MAP_ID</code> in <code>dashboard/.env.local</code>.</p></div></div>;
 }
