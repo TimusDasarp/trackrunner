@@ -45,6 +45,8 @@ const UpdateTaskSchema = z.object({
   documents: z.array(z.object({ id: z.union([z.string(), z.number()]), collected: z.boolean() })).max(30).optional(),
 });
 
+const DispatcherTaskUpdateSchema = CreateTaskSchema;
+
 const PushDeviceSchema = z.object({
   token: z.string().trim().min(20).max(4096),
   platform: z.enum(["android", "ios"]),
@@ -351,6 +353,28 @@ apiRouter.get("/tasks", requireUser, async (req: any, res) => {
 });
 
 apiRouter.patch("/tasks/:id", requireUser, async (req: any, res) => {
+  if (req.user.role === "dispatcher") {
+    const parsed = DispatcherTaskUpdateSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "invalid task update" });
+    const { rows } = await pool.query(
+      `UPDATE runner_tasks SET client_name = $1, client_address = $2, client_phone = $3, notes = $4,
+       destination_lat = $5, destination_lon = $6
+       WHERE id = $7 AND organization_id = $8 AND dispatcher_id = $9 AND status = 'sent'
+       RETURNING id`,
+      [parsed.data.clientName, parsed.data.clientAddress, parsed.data.clientPhone, parsed.data.notes || null,
+        parsed.data.destinationLat ?? null, parsed.data.destinationLon ?? null, req.params.id,
+        req.user.organizationId, req.user.sub]
+    );
+    if (!rows[0]) return res.status(409).json({ error: "only unacknowledged tasks can be edited" });
+    await pool.query("DELETE FROM runner_task_documents WHERE task_id = $1", [req.params.id]);
+    for (const document of [...new Set(parsed.data.documents)]) {
+      await pool.query("INSERT INTO runner_task_documents (task_id, name) VALUES ($1, $2)", [req.params.id, document]);
+    }
+    const updated = await getTask(String(req.params.id), String(req.user.organizationId));
+    req.app.get("io").to(`runner:${updated!.runnerId}`).emit("task:updated", updated);
+    req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${updated!.runnerId}`).emit("task:updated", updated);
+    return res.json({ task: updated });
+  }
   if (req.user.role !== "runner") return res.status(403).json({ error: "forbidden" });
   const parsed = UpdateTaskSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid task update" });
@@ -363,4 +387,14 @@ apiRouter.patch("/tasks/:id", requireUser, async (req: any, res) => {
   req.app.get("io").to(`runner:${task.runnerId}`).emit("task:updated", updated);
   req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${task.runnerId}`).emit("task:updated", updated);
   res.json({ task: updated });
+});
+
+apiRouter.delete("/tasks/:id", requireDispatcher, async (req: any, res) => {
+  const { rows } = await pool.query(
+    `DELETE FROM runner_tasks WHERE id = $1 AND organization_id = $2 AND dispatcher_id = $3
+     AND status IN ('completed', 'unable_to_complete') RETURNING id`,
+    [req.params.id, req.user.organizationId, req.user.sub]
+  );
+  if (!rows[0]) return res.status(409).json({ error: "only completed tasks can be deleted" });
+  res.json({ ok: true, id: String(rows[0].id) });
 });

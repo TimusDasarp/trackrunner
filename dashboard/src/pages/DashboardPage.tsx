@@ -6,7 +6,7 @@ import { useRunners } from "../hooks/useRunners";
 import RunnerMap from "../components/RunnerMap";
 import RunnerList from "../components/RunnerList";
 import RunnerDetail from "../components/RunnerDetail";
-import TaskBoard from "../components/TaskBoard";
+import TaskBoard, { type Task as BoardTask } from "../components/TaskBoard";
 import AddressPicker, { type AddressPin } from "../components/AddressPicker";
 import { api } from "../lib/auth";
 import { getSocket } from "../lib/socket";
@@ -15,7 +15,7 @@ import { Button, Card, Chip } from "@material-tailwind/react";
 
 type RunnerForm = { email: string; password: string; displayName: string };
 type TaskForm = { clientName: string; clientAddress: string; clientPhone: string; notes: string; documents: string[]; customDocument: string; destinationLat?: number; destinationLon?: number };
-type DashboardTask = { id: string; runnerId: string; clientName: string; clientAddress: string; status: string };
+type DashboardTask = BoardTask;
 
 const emptyRunnerForm: RunnerForm = { email: "", password: "", displayName: "" };
 const emptyTaskForm: TaskForm = { clientName: "", clientAddress: "", clientPhone: "", notes: "", documents: [], customDocument: "" };
@@ -31,6 +31,7 @@ export default function DashboardPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [formBusy, setFormBusy] = useState(false);
   const [taskRunner, setTaskRunner] = useState<RunnerState | null>(null);
+  const [editingTask, setEditingTask] = useState<DashboardTask | null>(null);
   const [taskForm, setTaskForm] = useState<TaskForm>(emptyTaskForm);
   const [documentTypes, setDocumentTypes] = useState<string[]>([]);
   const [taskError, setTaskError] = useState<string | null>(null);
@@ -127,9 +128,26 @@ export default function DashboardPage() {
   }
 
   async function openTask(runner: RunnerState) {
-    setTaskRunner(runner); setTaskForm(emptyTaskForm); setTaskError(null);
+    setTaskRunner(runner); setEditingTask(null); setTaskForm(emptyTaskForm); setTaskError(null);
     try { const data = await api<{ documentTypes: Array<{ name: string }> }>("/api/document-types"); setDocumentTypes(data.documentTypes.map((item) => item.name)); }
     catch { setDocumentTypes([]); }
+  }
+
+  async function openEditTask(task: DashboardTask) {
+    const runner = runners[task.runnerId];
+    if (!runner) return;
+    setTaskRunner(runner); setEditingTask(task); setTaskError(null);
+    setTaskForm({ clientName: task.clientName, clientAddress: task.clientAddress, clientPhone: task.clientPhone ?? "", notes: task.notes ?? "", documents: task.documents?.map((document) => document.name) ?? [], customDocument: "", destinationLat: task.destinationLat, destinationLon: task.destinationLon });
+    try { const data = await api<{ documentTypes: Array<{ name: string }> }>("/api/document-types"); setDocumentTypes(data.documentTypes.map((item) => item.name)); }
+    catch { setDocumentTypes([]); }
+  }
+
+  async function deleteTask(task: DashboardTask) {
+    if (!window.confirm(`Delete the completed task for ${task.clientName}?`)) return;
+    try {
+      await api(`/api/tasks/${task.id}`, { method: "DELETE" });
+      setBoardTasks((current) => current.filter((item) => item.id !== task.id));
+    } catch (error: any) { setTaskError(error.message ?? "Could not delete task"); }
   }
 
   async function saveTask(event: React.FormEvent) {
@@ -138,8 +156,10 @@ export default function DashboardPage() {
     if (!documents.length) return setTaskError("Select or add at least one document.");
     setFormBusy(true); setTaskError(null);
     try {
-      await api(`/api/runners/${taskRunner.runnerId}/tasks`, { method: "POST", body: JSON.stringify({ ...taskForm, documents }) });
+      if (editingTask) await api(`/api/tasks/${editingTask.id}`, { method: "PATCH", body: JSON.stringify({ ...taskForm, documents }) });
+      else await api(`/api/runners/${taskRunner.runnerId}/tasks`, { method: "POST", body: JSON.stringify({ ...taskForm, documents }) });
       setTaskRunner(null);
+      setEditingTask(null);
       setTaskTab("active");
     } catch (error: any) { setTaskError(error.message ?? "Could not send task"); }
     finally { setFormBusy(false); }
@@ -204,7 +224,7 @@ export default function DashboardPage() {
         </Card>
 
         <div className="order-3 md:col-span-12 lg:col-span-4">
-          <TaskBoard tasks={boardTasks} tab={taskTab} onTabChange={setTaskTab} runners={runners} onSelectRunner={setSelectedId} />
+          <TaskBoard tasks={boardTasks} tab={taskTab} onTabChange={setTaskTab} runners={runners} onSelectRunner={setSelectedId} onEdit={openEditTask} onDelete={deleteTask} />
         </div>
       </main>
 
@@ -237,14 +257,14 @@ export default function DashboardPage() {
       {taskRunner && (
         <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center bg-black/60 p-3">
           <form onSubmit={saveTask} className="w-full max-w-lg rounded-[28px] bg-surface p-6 shadow-2xl max-h-[95vh] overflow-y-auto">
-            <div className="mb-4 flex items-center justify-between gap-3"><div><h2 className="font-semibold">Assign task to {taskRunner.displayName}</h2><p className="text-xs text-on-surface-variant mt-1">The runner receives this immediately when connected, and it remains available after reconnecting.</p></div><button type="button" onClick={() => setTaskRunner(null)} className="text-on-surface-variant">×</button></div>
+            <div className="mb-4 flex items-center justify-between gap-3"><div><h2 className="font-semibold">{editingTask ? `Edit task for ${taskRunner.displayName}` : `Assign task to ${taskRunner.displayName}`}</h2><p className="text-xs text-on-surface-variant mt-1">{editingTask ? "This task can be changed until the runner acknowledges it." : "The runner receives this immediately when connected, and it remains available after reconnecting."}</p></div><button type="button" onClick={() => { setTaskRunner(null); setEditingTask(null); }} className="text-on-surface-variant">×</button></div>
             <label className="block text-sm mb-1">Client name</label><input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" required value={taskForm.clientName} onChange={(e) => setTaskForm({ ...taskForm, clientName: e.target.value })} />
             <AddressPicker value={taskForm.destinationLat != null && taskForm.destinationLon != null ? { address: taskForm.clientAddress, lat: taskForm.destinationLat, lon: taskForm.destinationLon } : null} onChange={(pin: AddressPin) => setTaskForm({ ...taskForm, clientAddress: pin.address, destinationLat: pin.lat, destinationLon: pin.lon })} />
             <label className="block text-sm mb-1">Phone number</label><input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" required value={taskForm.clientPhone} onChange={(e) => setTaskForm({ ...taskForm, clientPhone: e.target.value })} />
             <label className="block text-sm mb-2">Documents to collect</label><div className="grid grid-cols-2 gap-2 mb-3">{documentTypes.map((name) => <label key={name} className="flex items-center gap-2 text-sm text-on-surface-variant"><input className="accent-[#405f90]" type="checkbox" checked={taskForm.documents.includes(name)} onChange={(e) => setTaskForm({ ...taskForm, documents: e.target.checked ? [...taskForm.documents, name] : taskForm.documents.filter((item) => item !== name) })} />{name}</label>)}</div>
             <input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" placeholder="Other document (optional)" value={taskForm.customDocument} onChange={(e) => setTaskForm({ ...taskForm, customDocument: e.target.value })} />
             <label className="block text-sm mb-1">Notes (optional)</label><textarea className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" value={taskForm.notes} onChange={(e) => setTaskForm({ ...taskForm, notes: e.target.value })} />
-            {taskError && <p className="mb-3 text-sm text-red-700">{taskError}</p>}<div className="flex justify-end gap-3"><button type="button" onClick={() => setTaskRunner(null)} className="px-3 py-2 text-sm text-on-surface-variant">Cancel</button><button disabled={formBusy} className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white disabled:opacity-50">{formBusy ? "Sending…" : "Send task"}</button></div>
+            {taskError && <p className="mb-3 text-sm text-red-700">{taskError}</p>}<div className="flex justify-end gap-3"><button type="button" onClick={() => { setTaskRunner(null); setEditingTask(null); }} className="px-3 py-2 text-sm text-on-surface-variant">Cancel</button><button disabled={formBusy} className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white disabled:opacity-50">{formBusy ? "Saving…" : editingTask ? "Save task" : "Send task"}</button></div>
           </form>
         </div>
       )}
