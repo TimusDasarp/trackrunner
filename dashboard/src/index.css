@@ -8,3 +8,15 @@ html, body, #root {
 }
 
 body { background: #f8f7ff; color: #1b1b1f; }
+
+/* Google Places renders inside a web component. Force a light scheme so its
+   suggestion panel stays readable even when the OS/browser uses dark mode. */
+.delivery-address-search,
+.delivery-address-search gmp-place-autocomplete {
+  color-scheme: light !important;
+}
+
+.delivery-address-search gmp-place-autocomplete::part(input) {
+  color: #1b1b1f;
+  font: inherit;
+}
