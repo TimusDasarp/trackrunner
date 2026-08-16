@@ -13,7 +13,7 @@ export default function AppShell() {
       <Toolbar sx={{ minHeight: { xs: 64, sm: 72 }, px: { xs: 2, md: 4 }, py: { xs: 1, sm: 0 }, gap: 1.25, flexWrap: "wrap" }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, mr: { md: 2 }, minWidth: 0 }}><Box sx={{ display: "grid", placeItems: "center", flexShrink: 0, width: 36, height: 36, borderRadius: 2, bgcolor: "#405f90", color: "white", fontWeight: 800 }}>↗</Box><Box sx={{ minWidth: 0 }}><Typography fontWeight={700} lineHeight={1.1}>TrackRunner</Typography><Typography variant="caption" sx={{ display: "inline-flex", alignItems: "center", mt: .35, px: .8, py: .15, borderRadius: 99, bgcolor: connected ? "#dcfce7" : "#fef3c7", color: connected ? "#166534" : "#92400e", fontWeight: 700 }}>Dispatcher workspace</Typography></Box></Box>
         <Box component="nav" sx={{ display: "flex", order: { xs: 3, sm: 2 }, width: { xs: "100%", sm: "auto" }, gap: .5 }}>
-          <NavButton to="/dashboard" label="Dashboard" /><NavButton to="/runners" label="Runners" /><NavButton to="/analytics" label="Analytics" /><NavButton to="/shifts" label="Shifts" />
+          <NavButton to="/dashboard" label="Dashboard" /><NavButton to="/runners" label="Runners" /><NavButton to="/analytics" label="Analytics" />
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", ml: { sm: "auto" }, order: { xs: 2, sm: 3 } }}><Button onClick={signOut} size="small" color="inherit" sx={{ minHeight: 36 }}>Sign out</Button></Box>
       </Toolbar>
