@@ -388,12 +388,12 @@ export default function DashboardPage() {
           </div>
           <div className="grid grid-cols-2 gap-2 border-b border-[#e3e1e9] bg-[#fbfaff] p-3">
             <Metric
-              label="Live runners"
+              label="Live"
               value={statusCounts.live}
               tone="bg-emerald-500"
             />
             <Metric
-              label="Idle runners"
+              label="Idle"
               value={statusCounts.idle}
               tone="bg-sky-500"
             />
@@ -804,10 +804,11 @@ function Metric({
 }) {
   return (
     <div className="min-w-0 rounded-xl border border-[#e3e1e9] bg-white px-3 py-2.5">
-      <div className="truncate text-[11px] font-medium text-on-surface-variant">
+      {/* <div className="truncate text-[11px] font-medium text-on-surface-variant">
         {label}
-      </div>
+      </div> */}
       <div className="mt-1 flex items-center gap-2">
+        <span className="text-lg font-semibold">{label}</span>
         <span className="text-lg font-semibold">{value}</span>
         <span className={`h-2 w-2 shrink-0 rounded-full ${tone}`} />
       </div>
