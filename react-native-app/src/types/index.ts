@@ -49,5 +49,5 @@ export type TaskStatus = 'sent' | 'acknowledged' | 'in_progress' | 'completed' |
 export interface RunnerTaskDocument { id: string; name: string; collected: boolean; collectedAt?: string | null; }
 export interface RunnerTask {
   id: string; runnerId: string; clientName: string; clientAddress: string; clientPhone: string;
-  notes?: string | null; destinationLat?: number | null; destinationLon?: number | null; status: TaskStatus; createdAt: string; documents: RunnerTaskDocument[];
+  notes?: string | null; destinationLat?: number | null; destinationLon?: number | null; priority?: 'normal' | 'high' | 'urgent' | 'low'; status: TaskStatus; createdAt: string; documents: RunnerTaskDocument[];
 }

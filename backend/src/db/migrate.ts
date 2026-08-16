@@ -98,7 +98,10 @@ CREATE TABLE IF NOT EXISTS runner_tasks (
 CREATE INDEX IF NOT EXISTS idx_runner_tasks_runner_status ON runner_tasks (runner_id, status, created_at DESC);
 ALTER TABLE runner_tasks ADD COLUMN IF NOT EXISTS destination_lat DOUBLE PRECISION;
 ALTER TABLE runner_tasks ADD COLUMN IF NOT EXISTS destination_lon DOUBLE PRECISION;
-ALTER TABLE runner_tasks ADD COLUMN IF NOT EXISTS priority TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN ('low','normal','high','urgent'));
+ALTER TABLE runner_tasks ADD COLUMN IF NOT EXISTS priority TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN ('normal','high','urgent'));
+ALTER TABLE runner_tasks DROP CONSTRAINT IF EXISTS runner_tasks_priority_check;
+UPDATE runner_tasks SET priority = 'normal' WHERE priority = 'low';
+ALTER TABLE runner_tasks ADD CONSTRAINT runner_tasks_priority_check CHECK (priority IN ('normal','high','urgent'));
 ALTER TABLE runner_tasks ADD COLUMN IF NOT EXISTS due_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS task_events (

@@ -23,6 +23,15 @@ export default function MainScreen() {
     refreshPendingCount,
   } = useTracking();
   const { tasks, loading: tasksLoading, error: tasksError, refresh: refreshTasks, update: updateTask } = useTasks();
+  const priorityMeta = (priority?: RunnerTask['priority']) => priority === 'urgent'
+    ? { label: 'URGENT', border: '#DC2626', chip: '#FEE2E2' }
+    : priority === 'high'
+      ? { label: 'HIGH', border: '#F59E0B', chip: '#FEF3C7' }
+      : { label: 'NORMAL', border: '#94A3B8', chip: '#F1F5F9' };
+  const prioritizedTasks = [...tasks].sort((a, b) => {
+    const rank = (priority?: RunnerTask['priority']) => priority === 'urgent' ? 0 : priority === 'high' ? 1 : 2;
+    return rank(a.priority) - rank(b.priority);
+  });
 
   async function handleLogout() {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
@@ -97,13 +106,13 @@ export default function MainScreen() {
           </View>
           {tasksLoading ? <ActivityIndicator /> : tasksError ? (
             <Card mode="contained" style={{ backgroundColor: '#FEF2F2' }}><Card.Content><Text className="text-red-700">Could not load assigned tasks: {tasksError}</Text></Card.Content></Card>
-          ) : tasks.length === 0 ? (
+          ) : prioritizedTasks.length === 0 ? (
             <Card mode="contained"><Card.Content><Text className="text-slate-500">No active tasks assigned.</Text></Card.Content></Card>
-          ) : tasks.map((task) => (
-            <Card key={task.id} mode="elevated" style={{ marginBottom: 12 }}>
+          ) : prioritizedTasks.map((task) => {
+            const priority = priorityMeta(task.priority);
+            return <Card key={task.id} mode="elevated" style={{ marginBottom: 12, borderLeftWidth: 6, borderLeftColor: priority.border }}>
               <Card.Content style={{ gap: 8 }}>
-                <Text className="text-lg font-bold text-slate-900">{task.clientName}</Text>
-                <Chip compact style={{ alignSelf: 'flex-start' }}>{task.status.replace('_', ' ')}</Chip>
+                <View className="flex-row flex-wrap items-center gap-2"><Text className="text-lg font-bold text-slate-900">{task.clientName}</Text><Chip compact style={{ backgroundColor: priority.chip }}>{priority.label}</Chip><Chip compact>{task.status.replace('_', ' ')}</Chip></View>
                 <Text className="text-slate-700">{task.clientAddress}</Text>
                 <Button mode="text" icon="navigation" compact onPress={() => navigateToTask(task)}>Navigate</Button>
                 <Text className="text-blue-600 font-semibold">{task.clientPhone}</Text>
@@ -112,8 +121,8 @@ export default function MainScreen() {
                 {task.documents.map((doc) => <Chip key={doc.id} icon={doc.collected ? 'check-circle' : 'circle-outline'} selected={doc.collected} onPress={() => updateTask(task, task.status, task.documents.map((item) => item.id === doc.id ? { ...item, collected: !item.collected } : item))}>{doc.name}</Chip>)}
               </Card.Content>
               <Card.Actions><Button mode="contained" onPress={() => advanceTask(task)}>{taskButton(task.status)}</Button></Card.Actions>
-            </Card>
-          ))}
+            </Card>;
+          })}
         </View>
 
         {/* Pending Locations */}

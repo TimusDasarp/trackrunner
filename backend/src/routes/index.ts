@@ -41,7 +41,7 @@ const CreateTaskSchema = z.object({
   documents: z.array(z.string().trim().min(1).max(120)).min(1).max(30),
   destinationLat: z.number().min(-90).max(90).optional(),
   destinationLon: z.number().min(-180).max(180).optional(),
-  priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
+  priority: z.enum(["normal", "high", "urgent"]).default("normal"),
   dueAt: z.string().datetime().optional(),
 }).refine((value) => (value.destinationLat == null) === (value.destinationLon == null), {
   message: "destination coordinates must be provided together",
