@@ -28,10 +28,15 @@ const UpdateRunnerSchema = z.object({
   displayName: z.string().trim().min(2).max(80),
 });
 
+const IndianMobileSchema = z.string().trim().transform((value) => value.replace(/[\s-]/g, "")).refine(
+  (value) => /^(?:\+91|91)?[6-9]\d{9}$/.test(value),
+  "clientPhone must be a valid Indian mobile number"
+).transform((value) => `+91${value.replace(/^(?:\+91|91)/, "")}`);
+
 const CreateTaskSchema = z.object({
   clientName: z.string().trim().min(2).max(120),
   clientAddress: z.string().trim().min(5).max(500),
-  clientPhone: z.string().trim().min(5).max(40),
+  clientPhone: IndianMobileSchema,
   notes: z.string().trim().max(1000).optional(),
   documents: z.array(z.string().trim().min(1).max(120)).min(1).max(30),
   destinationLat: z.number().min(-90).max(90).optional(),

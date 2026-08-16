@@ -19,6 +19,12 @@ type TaskNotice = { id: string; clientName: string; runnerName: string; status: 
 const emptyRunnerForm: RunnerForm = { email: "", password: "", displayName: "" };
 const emptyTaskForm: TaskForm = { clientName: "", clientAddress: "", clientPhone: "", notes: "", documents: [], customDocument: "", priority: "normal", dueAt: "" };
 
+function normaliseIndianMobile(value: string): string | null {
+  const compact = value.replace(/[\s-]/g, "");
+  const localNumber = compact.startsWith("+91") ? compact.slice(3) : compact.startsWith("91") && compact.length === 12 ? compact.slice(2) : compact;
+  return /^[6-9]\d{9}$/.test(localNumber) ? `+91${localNumber}` : null;
+}
+
 export default function DashboardPage() {
   const { runners, refresh } = useRunners();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -175,9 +181,11 @@ export default function DashboardPage() {
     event.preventDefault(); if (!taskRunner) return;
     const documents = [...taskForm.documents, taskForm.customDocument.trim()].filter(Boolean);
     if (!documents.length) return setTaskError("Select or add at least one document.");
+    const clientPhone = normaliseIndianMobile(taskForm.clientPhone);
+    if (!clientPhone) return setTaskError("Enter a valid Indian mobile number (for example, +91 98765 43210).");
     setFormBusy(true); setTaskError(null);
     try {
-      const payload = { ...taskForm, dueAt: taskForm.dueAt ? new Date(taskForm.dueAt).toISOString() : undefined, documents };
+      const payload = { ...taskForm, clientPhone, dueAt: taskForm.dueAt ? new Date(taskForm.dueAt).toISOString() : undefined, documents };
       if (editingTask) await api(`/api/tasks/${editingTask.id}`, { method: "PATCH", body: JSON.stringify(payload) });
       else await api(`/api/runners/${taskRunner.runnerId}/tasks`, { method: "POST", body: JSON.stringify(payload) });
       setTaskRunner(null);
@@ -266,11 +274,11 @@ export default function DashboardPage() {
       )}
       {taskRunner && (
         <div className="fixed inset-0 z-[1400] flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4">
-          <form onSubmit={saveTask} className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-[28px] bg-surface p-5 shadow-2xl sm:rounded-[28px] sm:p-6">
+          <form onSubmit={saveTask} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-[28px] bg-surface p-5 shadow-2xl sm:rounded-[28px] sm:p-6">
             <div className="sticky -top-5 z-10 -mx-5 mb-4 flex items-start justify-between gap-3 bg-surface px-5 pb-3 pt-5 sm:-top-6 sm:-mx-6 sm:px-6 sm:pt-6"><div><h2 className="font-semibold">{editingTask ? `Edit task for ${taskRunner.displayName}` : `Assign task to ${taskRunner.displayName}`}</h2><p className="text-xs text-on-surface-variant mt-1">{editingTask ? "This task can be changed until the runner acknowledges it." : "The runner receives this immediately when connected, and it remains available after reconnecting."}</p></div><button type="button" onClick={() => { setTaskRunner(null); setEditingTask(null); }} className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-2xl text-on-surface-variant hover:bg-[#f0eff6]" aria-label="Close task form">×</button></div>
             <label className="block text-sm mb-1">Client name</label><input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" required value={taskForm.clientName} onChange={(e) => setTaskForm({ ...taskForm, clientName: e.target.value })} />
             <AddressPicker value={taskForm.destinationLat != null && taskForm.destinationLon != null ? { address: taskForm.clientAddress, lat: taskForm.destinationLat, lon: taskForm.destinationLon } : null} onChange={(pin: AddressPin) => setTaskForm({ ...taskForm, clientAddress: pin.address, destinationLat: pin.lat, destinationLon: pin.lon })} />
-            <label className="block text-sm mb-1">Phone number</label><input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" required value={taskForm.clientPhone} onChange={(e) => setTaskForm({ ...taskForm, clientPhone: e.target.value })} />
+            <label className="block text-sm mb-1">Phone number <span className="text-on-surface-variant">(India)</span></label><input className="w-full rounded-xl border border-[#777680] bg-transparent px-3 py-2" required type="tel" inputMode="numeric" autoComplete="tel" maxLength={16} placeholder="+91 98765 43210" value={taskForm.clientPhone} onChange={(e) => setTaskForm({ ...taskForm, clientPhone: e.target.value })} />{taskForm.clientPhone && !normaliseIndianMobile(taskForm.clientPhone) && <p className="mb-3 mt-1 text-xs text-red-700">Enter a valid 10-digit Indian mobile number beginning with 6–9.</p>}<div className="mb-3" />
             <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="text-sm">Priority<select className="mt-1 w-full rounded-xl border border-[#777680] bg-transparent px-3 py-2" value={taskForm.priority} onChange={(e) => setTaskForm({ ...taskForm, priority: e.target.value as TaskForm["priority"] })}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label><label className="text-sm">Due time <span className="text-on-surface-variant">(optional)</span><input type="datetime-local" className="mt-1 w-full rounded-xl border border-[#777680] bg-transparent px-3 py-2" value={taskForm.dueAt} onChange={(e) => setTaskForm({ ...taskForm, dueAt: e.target.value })} /></label></div>
             <label className="block text-sm mb-2">Documents to collect</label><div className="grid grid-cols-2 gap-2 mb-3">{documentTypes.map((name) => <label key={name} className="flex items-center gap-2 text-sm text-on-surface-variant"><input className="accent-[#405f90]" type="checkbox" checked={taskForm.documents.includes(name)} onChange={(e) => setTaskForm({ ...taskForm, documents: e.target.checked ? [...taskForm.documents, name] : taskForm.documents.filter((item) => item !== name) })} />{name}</label>)}</div>
             <input className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2" placeholder="Other document (optional)" value={taskForm.customDocument} onChange={(e) => setTaskForm({ ...taskForm, customDocument: e.target.value })} />

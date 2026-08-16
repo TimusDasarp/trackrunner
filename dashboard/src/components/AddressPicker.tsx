@@ -11,7 +11,13 @@ function AddressSearch({ value, onChange }: { value: AddressPin | null; onChange
 
   useEffect(() => {
     if (!places || !inputRef.current) return;
-    const autocomplete = new places.Autocomplete(inputRef.current, { fields: ["formatted_address", "geometry", "name"], types: ["geocode", "establishment"] });
+    const autocomplete = new places.Autocomplete(inputRef.current, {
+      fields: ["formatted_address", "geometry", "name"],
+      // Google Places accepts one type collection here. Mixing `geocode` and
+      // `establishment` can stop suggestions from loading altogether.
+      types: ["geocode"],
+      componentRestrictions: { country: "in" },
+    });
     const listener = autocomplete.addListener("place_changed", () => {
       const place = autocomplete.getPlace();
       const location = place.geometry?.location;
@@ -22,7 +28,7 @@ function AddressSearch({ value, onChange }: { value: AddressPin | null; onChange
   }, [places, onChange]);
 
   useEffect(() => { if (inputRef.current) inputRef.current.value = value?.address ?? ""; }, [value?.address]);
-  return <input ref={inputRef} className="w-full rounded-xl border border-[#777680] bg-transparent px-3 py-2" defaultValue={value?.address ?? ""} placeholder="Search an address or landmark" />;
+  return <input ref={inputRef} className="w-full rounded-xl border border-[#777680] bg-transparent px-3 py-2" defaultValue={value?.address ?? ""} autoComplete="off" placeholder="Search an India address or landmark" />;
 }
 
 function FocusPin({ value }: { value: AddressPin | null }) {
