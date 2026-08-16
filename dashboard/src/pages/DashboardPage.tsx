@@ -397,7 +397,7 @@ export default function DashboardPage() {
               value={statusCounts.idle}
               tone="bg-sky-500"
             />
-            <Metric
+            {/* <Metric
               label="Needs attention"
               value={statusCounts.stale}
               tone="bg-amber-500"
@@ -406,7 +406,7 @@ export default function DashboardPage() {
               label="Offline"
               value={statusCounts.offline}
               tone="bg-slate-400"
-            />
+            /> */}
           </div>
           <RunnerList
             runners={runners}
@@ -808,7 +808,7 @@ function Metric({
         {label}
       </div> */}
       <div className="mt-1 flex items-center gap-2">
-        <span className="text-lg font-semibold">{label}</span>
+        <span className="text-[12px] font-medium text-on-surface-variant">{label}</span>
         <span className="text-lg font-semibold">{value}</span>
         <span className={`h-2 w-2 shrink-0 rounded-full ${tone}`} />
       </div>
