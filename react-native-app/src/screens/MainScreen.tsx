@@ -4,6 +4,7 @@ import {
   Text,
   Alert,
   Linking,
+  Platform,
   ScrollView,
   RefreshControl,
 } from 'react-native';
@@ -38,12 +39,26 @@ export default function MainScreen() {
 
   const taskButton = (status: RunnerTask['status']) => status === 'sent' ? 'Acknowledge task' : status === 'acknowledged' ? 'Start task' : 'Mark completed';
   async function navigateToTask(task: RunnerTask) {
-    const query = task.destinationLat != null && task.destinationLon != null
+    const destination = task.destinationLat != null && task.destinationLon != null
       ? `${task.destinationLat},${task.destinationLon}`
-      : encodeURIComponent(task.clientAddress);
-    const url = `geo:0,0?q=${query}`;
-    if (!(await Linking.canOpenURL(url))) return Alert.alert('Maps unavailable', 'Install or enable a maps app to navigate to this task.');
-    await Linking.openURL(url);
+      : task.clientAddress;
+    const encodedDestination = encodeURIComponent(destination);
+    const mapsFallback = `https://www.google.com/maps/dir/?api=1&destination=${encodedDestination}&travelmode=driving`;
+    // `canOpenURL(geo:)` is unreliable on recent Android releases unless all
+    // intent handlers are declared in the manifest. Open the Maps intent
+    // directly, then fall back to the Maps web URL if no native handler exists.
+    const nativeNavigation = Platform.OS === 'android'
+      ? `google.navigation:q=${encodedDestination}&mode=d`
+      : mapsFallback;
+    try {
+      await Linking.openURL(nativeNavigation);
+    } catch {
+      try {
+        await Linking.openURL(mapsFallback);
+      } catch {
+        Alert.alert('Maps unavailable', 'Install or enable a maps app to navigate to this task.');
+      }
+    }
   }
 
   return (
