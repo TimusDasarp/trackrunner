@@ -16,7 +16,10 @@ function FlyToRunner({ runner }: { runner: RunnerState | null }) {
     if (!map || !runner?.hasLocation) return;
     map.panTo({ lat: runner.lat!, lng: runner.lon! });
     map.setZoom(16);
-  }, [map, runner?.runnerId, runner?.lat, runner?.lon, runner?.hasLocation]);
+  // Re-centre only when the dispatcher selects another runner. Keeping lat/lon
+  // out of this dependency lets dispatchers zoom and pan without live updates
+  // snapping the camera back every few seconds.
+  }, [map, runner?.runnerId, runner?.hasLocation]);
   return null;
 }
 
@@ -44,8 +47,8 @@ export default function RunnerMap({ runners, selectedId, trail, onSelect, viewer
   }
 
   return (
-    <APIProvider apiKey={googleMapsApiKey}>
-      <Map center={{ lat: initialCenter[0], lng: initialCenter[1] }} zoom={selected ? 16 : 13} mapId={googleMapsMapId} className="h-full w-full rounded-2xl" style={{ minHeight: 400 }} gestureHandling="greedy">
+    <APIProvider apiKey={googleMapsApiKey} libraries={["places"]}>
+      <Map defaultCenter={{ lat: initialCenter[0], lng: initialCenter[1] }} defaultZoom={selected ? 16 : 13} mapId={googleMapsMapId} className="h-full w-full rounded-2xl" style={{ minHeight: 400 }} gestureHandling="greedy" zoomControl scrollwheel disableDoubleClickZoom={false}>
         {liveRunners.map((r) => (
           <AdvancedMarker
           key={r.runnerId}

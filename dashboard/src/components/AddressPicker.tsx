@@ -6,29 +6,35 @@ import { MapSetupNotice } from "./RunnerMap";
 export type AddressPin = { address: string; lat: number; lon: number };
 
 function AddressSearch({ value, onChange }: { value: AddressPin | null; onChange: (pin: AddressPin) => void }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const onChangeRef = useRef(onChange);
   const places = useMapsLibrary("places");
 
-  useEffect(() => {
-    if (!places || !inputRef.current) return;
-    const autocomplete = new places.Autocomplete(inputRef.current, {
-      fields: ["formatted_address", "geometry", "name"],
-      // Google Places accepts one type collection here. Mixing `geocode` and
-      // `establishment` can stop suggestions from loading altogether.
-      types: ["geocode"],
-      componentRestrictions: { country: "in" },
-    });
-    const listener = autocomplete.addListener("place_changed", () => {
-      const place = autocomplete.getPlace();
-      const location = place.geometry?.location;
-      if (!location) return;
-      onChange({ address: place.formatted_address ?? place.name ?? "Pinned location", lat: location.lat(), lon: location.lng() });
-    });
-    return () => listener.remove();
-  }, [places, onChange]);
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
 
-  useEffect(() => { if (inputRef.current) inputRef.current.value = value?.address ?? ""; }, [value?.address]);
-  return <input ref={inputRef} className="w-full rounded-xl border border-[#777680] bg-transparent px-3 py-2" defaultValue={value?.address ?? ""} autoComplete="off" placeholder="Search an India address or landmark" />;
+  useEffect(() => {
+    const PlaceAutocompleteElement = (places as any)?.PlaceAutocompleteElement;
+    if (!PlaceAutocompleteElement || !containerRef.current) return;
+    const autocomplete = new PlaceAutocompleteElement({ includedRegionCodes: ["in"] }) as any;
+    autocomplete.className = "block w-full rounded-xl border border-[#777680] bg-transparent px-3 py-2";
+    autocomplete.setAttribute("placeholder", "Search an India address or landmark");
+    const onSelect = async (event: any) => {
+      const place = event.placePrediction?.toPlace();
+      if (!place) return;
+      await place.fetchFields({ fields: ["displayName", "formattedAddress", "location"] });
+      const location = place.location;
+      if (!location) return;
+      onChangeRef.current({ address: place.formattedAddress ?? place.displayName ?? "Pinned location", lat: location.lat(), lon: location.lng() });
+    };
+    autocomplete.addEventListener("gmp-select", onSelect);
+    containerRef.current.replaceChildren(autocomplete);
+    return () => {
+      autocomplete.removeEventListener("gmp-select", onSelect);
+      autocomplete.remove();
+    };
+  }, [places]);
+
+  return <div ref={containerRef} aria-label={value?.address ? `Selected delivery address: ${value.address}` : "Delivery address search"} />;
 }
 
 function FocusPin({ value }: { value: AddressPin | null }) {
