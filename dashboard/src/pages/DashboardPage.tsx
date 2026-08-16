@@ -14,7 +14,7 @@ import { Alert, Snackbar } from "@mui/material";
 type RunnerForm = { email: string; password: string; displayName: string };
 type TaskForm = { clientName: string; clientAddress: string; clientPhone: string; notes: string; documents: string[]; customDocument: string; priority: "low" | "normal" | "high" | "urgent"; dueAt: string; destinationLat?: number; destinationLon?: number };
 type DashboardTask = BoardTask;
-type TaskNotice = { id: string; clientName: string; status: string };
+type TaskNotice = { id: string; clientName: string; runnerName: string; status: string };
 
 const emptyRunnerForm: RunnerForm = { email: "", password: "", displayName: "" };
 const emptyTaskForm: TaskForm = { clientName: "", clientAddress: "", clientPhone: "", notes: "", documents: [], customDocument: "", priority: "normal", dueAt: "" };
@@ -94,19 +94,20 @@ export default function DashboardPage() {
         return [task, ...current.filter((item) => item.id !== task.id)];
       });
     };
-    const notifyTaskStatus = (task: { id: string; clientName: string; status: string }) => {
+    const notifyTaskStatus = (task: { id: string; runnerId: string; clientName: string; status: string }) => {
       // A dispatcher edit leaves the task at "sent"; status alerts are only
       // for runner lifecycle changes such as acknowledged or completed.
       if (task.status === "sent") return;
       setTaskNotices((current) => [...current, {
         id: `${task.id}-${task.status}-${Date.now()}-${Math.random()}`,
         clientName: task.clientName,
+        runnerName: runners[task.runnerId]?.displayName ?? "Runner",
         status: task.status,
       }]);
     };
     socket.on("task:created", updateTask); socket.on("task:updated", updateTask); socket.on("task:updated", notifyTaskStatus);
     return () => { socket.off("task:created", updateTask); socket.off("task:updated", updateTask); socket.off("task:updated", notifyTaskStatus); };
-  }, [selectedId, taskTab]);
+  }, [selectedId, taskTab, runners]);
 
   // Append live updates to trail
   useEffect(() => {
@@ -279,7 +280,7 @@ export default function DashboardPage() {
         </div>
       )}
       {pendingDeletion && <div role="alert" className="fixed left-4 right-4 top-4 z-[1100] flex max-w-md flex-col gap-3 rounded-lg bg-[#323232] px-4 py-3 text-sm text-white shadow-xl sm:left-auto sm:flex-row sm:items-center sm:gap-4"><span className="min-w-0 break-words">Delete completed task for {pendingDeletion.clientName}?</span><div className="flex w-full gap-2 sm:w-auto sm:shrink-0"><button onClick={confirmDeleteTask} className="min-h-9 flex-1 rounded px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#a9c7ff] hover:bg-white/15 sm:flex-none">OK</button><button onClick={() => setPendingDeletion(null)} className="min-h-9 flex-1 rounded px-3 py-1 text-xs font-bold uppercase tracking-wide text-white/80 hover:bg-white/15 sm:flex-none">Cancel</button></div></div>}
-      {taskNotices.map((notice, index) => <Snackbar key={notice.id} open autoHideDuration={10_000} onClose={() => setTaskNotices((current) => current.filter((item) => item.id !== notice.id))} anchorOrigin={{ vertical: "top", horizontal: "right" }} sx={{ top: { xs: `${12 + index * 86}px`, sm: `${16 + index * 86}px` }, right: { xs: 8, sm: 16 }, left: { xs: 8, sm: "auto" }, maxWidth: { xs: "none", sm: 420 } }}><Alert variant="filled" severity={notice.status === "unable_to_complete" ? "error" : "success"} onClose={() => setTaskNotices((current) => current.filter((item) => item.id !== notice.id))} sx={{ width: "100%", alignItems: "center" }}><strong>{notice.clientName}</strong> is now {notice.status.replaceAll("_", " ")}.</Alert></Snackbar>)}
+      {taskNotices.map((notice, index) => <Snackbar key={notice.id} open autoHideDuration={10_000} onClose={() => setTaskNotices((current) => current.filter((item) => item.id !== notice.id))} anchorOrigin={{ vertical: "top", horizontal: "right" }} sx={{ top: { xs: `${12 + index * 86}px`, sm: `${16 + index * 86}px` }, right: { xs: 8, sm: 16 }, left: { xs: 8, sm: "auto" }, maxWidth: { xs: "none", sm: 420 } }}><Alert variant="filled" severity={notice.status === "unable_to_complete" ? "error" : "success"} onClose={() => setTaskNotices((current) => current.filter((item) => item.id !== notice.id))} sx={{ width: "100%", alignItems: "center" }}>{notice.status === "completed" ? <>Task for <strong>{notice.clientName}</strong> completed by <strong>{notice.runnerName}</strong>.</> : <><strong>{notice.runnerName}</strong> updated <strong>{notice.clientName}</strong> to {notice.status.replaceAll("_", " ")}.</>}</Alert></Snackbar>)}
     </div>
   );
 }
