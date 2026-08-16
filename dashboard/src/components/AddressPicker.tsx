@@ -16,7 +16,11 @@ function AddressSearch({ value, onChange }: { value: AddressPin | null; onChange
     const PlaceAutocompleteElement = (places as any)?.PlaceAutocompleteElement;
     if (!PlaceAutocompleteElement || !containerRef.current) return;
     const autocomplete = new PlaceAutocompleteElement({ includedRegionCodes: ["in"] }) as any;
-    autocomplete.className = "block w-full rounded-xl border border-[#777680] bg-transparent px-3 py-2";
+    autocomplete.className = "block w-full";
+    autocomplete.style.border = "0";
+    autocomplete.style.outline = "0";
+    autocomplete.style.background = "transparent";
+    autocomplete.style.color = "#1b1b1f";
     autocomplete.setAttribute("placeholder", "Search an India address or landmark");
     const onSelect = async (event: any) => {
       const place = event.placePrediction?.toPlace();
@@ -34,7 +38,7 @@ function AddressSearch({ value, onChange }: { value: AddressPin | null; onChange
     };
   }, [places]);
 
-  return <div ref={containerRef} aria-label={value?.address ? `Selected delivery address: ${value.address}` : "Delivery address search"} />;
+  return <div className="rounded-xl border border-[#777680] bg-transparent px-3 py-2 text-ink transition focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20" aria-label={value?.address ? `Selected delivery address: ${value.address}` : "Delivery address search"}><div ref={containerRef} /></div>;
 }
 
 function FocusPin({ value }: { value: AddressPin | null }) {
