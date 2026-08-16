@@ -5,7 +5,13 @@ interface Props {
   trail: Array<[number, number]>;
   onRename: (runner: RunnerState) => void;
   onCreateTask: (runner: RunnerState) => void;
-  tasks: Array<{ id: string; clientName: string; clientAddress: string; status: string }>;
+  tasks: Array<{ id: string; clientName: string; clientAddress: string; status: string; priority?: string }>;
+}
+
+function priorityStyle(priority?: string) {
+  if (priority === "urgent") return { label: "Urgent", border: "border-l-red-600", badge: "bg-red-100 text-red-800" };
+  if (priority === "high") return { label: "High", border: "border-l-amber-500", badge: "bg-amber-100 text-amber-800" };
+  return { label: "Normal", border: "border-l-slate-400", badge: "bg-slate-100 text-slate-700" };
 }
 
 export default function RunnerDetail({ runner, trail, onRename, onCreateTask, tasks }: Props) {
@@ -33,7 +39,7 @@ export default function RunnerDetail({ runner, trail, onRename, onCreateTask, ta
         </div>
       </div>
 
-      <div className="rounded-xl bg-[#f6f5fa] p-3"><div className="mb-2 text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Active tasks</div>{tasks.length === 0 ? <p className="text-xs text-on-surface-variant">No unfinished tasks assigned.</p> : <div className="space-y-2">{tasks.map((task) => <div key={task.id} className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2"><div><div className="font-medium">{task.clientName}</div><div className="text-xs text-on-surface-variant">{task.clientAddress}</div></div><span className="rounded-full bg-[#e9efff] px-2 py-1 text-xs font-medium capitalize text-accent">{task.status.replace("_", " ")}</span></div>)}</div>}</div>
+      <div className="rounded-xl bg-[#f6f5fa] p-3"><div className="mb-2 text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Active tasks</div>{tasks.length === 0 ? <p className="text-xs text-on-surface-variant">No unfinished tasks assigned.</p> : <div className="space-y-2">{tasks.map((task) => { const priority = priorityStyle(task.priority); return <div key={task.id} className={`flex items-center justify-between gap-3 rounded-lg border-l-4 ${priority.border} bg-white px-3 py-2`}><div className="min-w-0"><div className="font-medium">{task.clientName}</div><div className="truncate text-xs text-on-surface-variant">{task.clientAddress}</div></div><div className="flex shrink-0 flex-col items-end gap-1"><span className={`rounded-full px-2 py-1 text-xs font-medium ${priority.badge}`}>{priority.label}</span><span className="rounded-full bg-[#e9efff] px-2 py-1 text-xs font-medium capitalize text-accent">{task.status.replace("_", " ")}</span></div></div>; })}</div>}</div>
     </div>
   );
 }

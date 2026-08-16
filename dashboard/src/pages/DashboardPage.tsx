@@ -81,7 +81,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!selectedId) return setActiveTasks([]);
-    api<{ tasks: Array<{ id: string; runnerId: string; clientName: string; clientAddress: string; status: string }> }>(`/api/runners/${selectedId}/tasks`).then((response) => setActiveTasks(response.tasks ?? [])).catch(() => setActiveTasks([]));
+    api<{ tasks: Array<{ id: string; runnerId: string; clientName: string; clientAddress: string; status: string; priority?: string }> }>(`/api/runners/${selectedId}/tasks`).then((response) => setActiveTasks(response.tasks ?? [])).catch(() => setActiveTasks([]));
   }, [selectedId]);
 
   useEffect(() => {
