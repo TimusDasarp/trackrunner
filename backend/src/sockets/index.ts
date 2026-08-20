@@ -155,8 +155,14 @@ export function attachSockets(io: Server) {
       // eslint-disable-next-line no-console
       console.log(`[ws] disconnect user=${userId} sid=${s.id}`);
       if (role === "runner") {
-        await markOffline(userId).catch(() => {});
-        io.to(`dispatchers:${organizationId}:runner:${userId}`).emit("runner:offline", { runnerId: userId });
+        // A foreground app and its background location task can briefly own
+        // separate sockets. Only mark the runner offline when the final one
+        // has disconnected, otherwise the dashboard flickers offline.
+        const remainingSockets = await io.in(`runner:${userId}`).fetchSockets();
+        if (remainingSockets.length === 0) {
+          await markOffline(userId).catch(() => {});
+          io.to(`dispatchers:${organizationId}:runner:${userId}`).emit("runner:offline", { runnerId: userId });
+        }
       }
     });
   });

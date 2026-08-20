@@ -87,12 +87,19 @@ export function useRunners() {
     };
     const onDisconnect = () => setConnected(false);
     const onLocation = (p: LocationUpdate) => upsert(p);
+    const onLocationBatch = (points: LocationUpdate[]) => {
+      // A cache flush can arrive as a batch after the phone reconnects. Apply
+      // every point so the most recent item is reflected even if the separate
+      // single-location notification is delayed by the network.
+      points.forEach(upsert);
+    };
     const onOffline = (p: { runnerId: string }) => setOffline(p.runnerId);
     const onTrackingStatus = (p: { runnerId: string; trackingActive: boolean }) => setTrackingStatus(p);
 
     s.on("connect", onConnect);
     s.on("disconnect", onDisconnect);
     s.on("runner:location", onLocation);
+    s.on("runner:location:batch", onLocationBatch);
     s.on("runner:offline", onOffline);
     s.on("runner:status", onTrackingStatus);
 
@@ -103,10 +110,19 @@ export function useRunners() {
       s.off("connect", onConnect);
       s.off("disconnect", onDisconnect);
       s.off("runner:location", onLocation);
+      s.off("runner:location:batch", onLocationBatch);
       s.off("runner:offline", onOffline);
       s.off("runner:status", onTrackingStatus);
     };
   }, [upsert, setOffline, setTrackingStatus, refresh]);
+
+  useEffect(() => {
+    // Socket events are fast-path updates. Periodic reconciliation covers a
+    // missed event after a browser or proxy reconnect without waiting for a
+    // manual dashboard refresh.
+    const timer = window.setInterval(() => void refresh(), 30_000);
+    return () => window.clearInterval(timer);
+  }, [refresh]);
 
   return { runners, connected, refresh };
 }

@@ -7,19 +7,31 @@ export async function persistLocations(points: LocationPayload[]): Promise<strin
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    for (const point of points) {
-      await client.query(
-        `INSERT INTO location_history
-          (runner_id, lat, lon, accuracy, speed, bearing, altitude, battery, event_id, ts)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-         ON CONFLICT (runner_id, event_id) WHERE event_id IS NOT NULL DO NOTHING`,
-        [
-          Number(point.runnerId), point.lat, point.lon, point.accuracy ?? null,
-          point.speed ?? null, point.bearing ?? null, point.altitude ?? null,
-          point.battery ?? null, point.eventId, point.ts,
-        ]
-      );
-    }
+    // One query per point made an offline flush of a few hundred locations
+    // exceed the Socket.IO acknowledgement timeout. Insert the complete batch
+    // atomically instead; event IDs keep retries idempotent.
+    await client.query(
+      `INSERT INTO location_history
+        (runner_id, lat, lon, accuracy, speed, bearing, altitude, battery, event_id, ts)
+       SELECT * FROM UNNEST(
+         $1::integer[], $2::double precision[], $3::double precision[],
+         $4::real[], $5::real[], $6::real[], $7::real[], $8::real[],
+         $9::text[], $10::bigint[]
+       )
+       ON CONFLICT (runner_id, event_id) WHERE event_id IS NOT NULL DO NOTHING`,
+      [
+        points.map((point) => Number(point.runnerId)),
+        points.map((point) => point.lat),
+        points.map((point) => point.lon),
+        points.map((point) => point.accuracy ?? null),
+        points.map((point) => point.speed ?? null),
+        points.map((point) => point.bearing ?? null),
+        points.map((point) => point.altitude ?? null),
+        points.map((point) => point.battery ?? null),
+        points.map((point) => point.eventId),
+        points.map((point) => point.ts),
+      ]
+    );
     await client.query("COMMIT");
     return points.map((point) => point.eventId);
   } catch (error) {
