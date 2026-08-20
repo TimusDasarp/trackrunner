@@ -33,7 +33,19 @@ export const SessionStore = {
     await SecureStore.deleteItemAsync(STORAGE_KEYS.USER_DATA);
   },
 
+  async savePushToken(token: string): Promise<void> {
+    await SecureStore.setItemAsync(STORAGE_KEYS.PUSH_TOKEN, token);
+  },
+
+  async getPushToken(): Promise<string | null> {
+    return await SecureStore.getItemAsync(STORAGE_KEYS.PUSH_TOKEN);
+  },
+
+  async clearPushToken(): Promise<void> {
+    await SecureStore.deleteItemAsync(STORAGE_KEYS.PUSH_TOKEN);
+  },
+
   async clearAll(): Promise<void> {
-    await Promise.all([this.clearToken(), this.clearUser()]);
+    await Promise.all([this.clearToken(), this.clearUser(), this.clearPushToken()]);
   },
 };

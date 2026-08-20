@@ -8,18 +8,29 @@ import * as Crypto from 'expo-crypto';
 import { DB_NAME } from '../constants';
 import type { CachedLocation, LocationPoint } from '../types';
 
-let db: SQLite.SQLiteDatabase | null = null;
+let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 async function getDb(): Promise<SQLite.SQLiteDatabase> {
-  if (!db) {
-    db = await SQLite.openDatabaseAsync(DB_NAME);
-    await initSchema(db);
+  if (!dbPromise) {
+    dbPromise = (async () => {
+      const database = await SQLite.openDatabaseAsync(DB_NAME);
+      await initSchema(database);
+      return database;
+    })();
   }
-  return db;
+  try {
+    return await dbPromise;
+  } catch (error) {
+    // Do not retain a failed native database handle. A later tracking task can
+    // reopen it instead of repeatedly receiving the same prepareAsync failure.
+    dbPromise = null;
+    throw error;
+  }
 }
 
 async function initSchema(database: SQLite.SQLiteDatabase): Promise<void> {
   await database.execAsync(`
+    PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS locations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       latitude REAL NOT NULL,

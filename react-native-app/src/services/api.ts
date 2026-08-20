@@ -44,13 +44,27 @@ class ApiClient {
     }
   }
 
+  async registerPushToken(token: string, platform: 'android' | 'ios', appVersion?: string): Promise<void> {
+    await request('/devices/push-token', {
+      method: 'PUT',
+      body: JSON.stringify({ token, platform, appVersion, permissionGranted: true }),
+    });
+  }
+
+  async unregisterPushToken(token: string): Promise<void> {
+    await request('/devices/push-token', {
+      method: 'DELETE',
+      body: JSON.stringify({ token }),
+    });
+  }
+
   async getTasks(): Promise<RunnerTask[]> {
-    const response = await request<{ tasks: RunnerTask[] }>('/api/tasks');
+    const response = await request<{ tasks: RunnerTask[] }>('/tasks');
     return response.tasks ?? [];
   }
 
   async updateTask(id: string, status: TaskStatus, documents?: Array<{ id: string; collected: boolean }>): Promise<RunnerTask> {
-    const response = await request<{ task: RunnerTask }>(`/api/tasks/${id}`, {
+    const response = await request<{ task: RunnerTask }>(`/tasks/${id}`, {
       method: 'PATCH', body: JSON.stringify({ status, documents }),
     });
     return response.task;

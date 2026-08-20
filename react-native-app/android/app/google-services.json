@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "482443373466",
+    "project_id": "trackrunner-505211",
+    "storage_bucket": "trackrunner-505211.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:482443373466:android:474d41c093eef2adcde823",
+        "android_client_info": {
+          "package_name": "com.trackrunner.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBy5O-Rq5a7xo3zTm4pNU95rPbmS2EqfRM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,2 @@
+// Set this per environment and expose it to Info.plist as API_BASE_URL.
+API_BASE_URL = https:/$()/your-api.example.com/api

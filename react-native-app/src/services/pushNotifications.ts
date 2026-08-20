@@ -14,6 +14,9 @@ Notifications.setNotificationHandler({
 });
 
 export async function registerForTaskNotifications(): Promise<void> {
+  // The local iOS build uses a free Apple team, which cannot enable APNs.
+  if (Platform.OS === 'ios') return;
+
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('task-assignments', {
       name: 'New delivery tasks',
@@ -34,6 +37,8 @@ export async function registerForTaskNotifications(): Promise<void> {
 }
 
 export async function unregisterForTaskNotifications(): Promise<void> {
+  if (Platform.OS === 'ios') return;
+
   const token = await SessionStore.getPushToken();
   if (!token) return;
   try {

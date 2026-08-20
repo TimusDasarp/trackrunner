@@ -5,8 +5,8 @@ import { Button, Card, Input } from "@material-tailwind/react";
 
 export default function LoginPage() {
   const nav = useNavigate();
-  const [email, setEmail] = useState("dispatcher@demo.local");
-  const [password, setPassword] = useState("demo1234");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -46,6 +46,8 @@ export default function LoginPage() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           type="email"
+          placeholder="you@company.com"
+          autoComplete="email"
           required
         />
 
@@ -55,6 +57,8 @@ export default function LoginPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           type="password"
+          placeholder="Enter your password"
+          autoComplete="current-password"
           required
         />
 
@@ -66,10 +70,6 @@ export default function LoginPage() {
         >
           {busy ? "Signing in..." : "Sign in"}
         </Button>
-
-        <p className="text-xs text-slate-500 mt-4">
-          Demo: <code>dispatcher@demo.local</code> / <code>demo1234</code>
-        </p>
       </form></Card>
     </div>
   );

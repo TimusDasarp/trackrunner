@@ -6,7 +6,7 @@ React + Vite + TypeScript dispatcher dashboard for the TrackRunner real-time cou
 - React 18 + Vite 5
 - TypeScript
 - Tailwind CSS
-- Leaflet + react-leaflet (OpenStreetMap tiles)
+- Google Maps JavaScript API via `@vis.gl/react-google-maps`
 - socket.io-client
 
 ## Setup
@@ -17,6 +17,17 @@ npm run dev
 ```
 
 The dev server runs on `http://localhost:5173` and proxies `/api` and `/socket.io` to `http://localhost:3000` (the backend).
+
+## Google Maps configuration
+
+Create `dashboard/.env.local` with a browser-restricted key and a Google Maps Map ID:
+
+```bash
+VITE_GOOGLE_MAPS_API_KEY=your_browser_restricted_key
+VITE_GOOGLE_MAP_ID=your_google_map_id
+```
+
+Enable **Maps JavaScript API**. Enable **Places API (New)** as well to use task address autocomplete.
 
 ## Demo credentials
 

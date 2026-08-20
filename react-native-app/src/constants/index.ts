@@ -29,6 +29,7 @@ export const LOCATION_DISTANCE_INTERVAL_M = 5; // 5 meters
 export const STORAGE_KEYS = {
   AUTH_TOKEN: 'auth_token',
   USER_DATA: 'user_data',
+  PUSH_TOKEN: 'push_token',
   RUNNER_ID: 'runner_id',
 } as const;
 

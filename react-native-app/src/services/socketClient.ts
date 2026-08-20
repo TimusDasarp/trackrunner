@@ -39,6 +39,7 @@ class SocketClient {
   private connected = false;
   private runnerId: string | null = null;
   private listeners = new Set<SocketConnectionListener>();
+  private eventListeners = new Map<string, Set<SocketEventListener>>();
   private connectionPromise: Promise<void> | null = null;
   private trackingActive: boolean | null = null;
 
@@ -71,6 +72,7 @@ class SocketClient {
         reconnectionDelayMax: 5000,
       });
       this.socket = socket;
+      this.attachEventListeners(socket);
 
       socket.on('connect', () => {
         console.log('[Socket] Connected via', socket.io.engine.transport.name);
@@ -184,14 +186,27 @@ class SocketClient {
   }
 
   on(event: string, handler: (...args: any[]) => void): void {
+    const handlers = this.eventListeners.get(event) ?? new Set<SocketEventListener>();
+    handlers.add(handler as SocketEventListener);
+    this.eventListeners.set(event, handlers);
     this.socket?.on(event, handler as SocketEventListener);
   }
 
   off(event: string, handler?: (...args: any[]) => void): void {
     if (handler) {
+      const handlers = this.eventListeners.get(event);
+      handlers?.delete(handler as SocketEventListener);
+      if (handlers?.size === 0) this.eventListeners.delete(event);
       this.socket?.off(event, handler);
     } else {
+      this.eventListeners.delete(event);
       this.socket?.removeAllListeners(event);
+    }
+  }
+
+  private attachEventListeners(socket: Socket): void {
+    for (const [event, handlers] of this.eventListeners) {
+      for (const handler of handlers) socket.on(event, handler);
     }
   }
 }

@@ -6,9 +6,17 @@ import type { RunnerTask, TaskStatus } from '../types';
 export function useTasks() {
   const [tasks, setTasks] = useState<RunnerTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    try { setTasks(await api.getTasks()); }
+    try {
+      setError(null);
+      setTasks(await api.getTasks());
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not load assigned tasks';
+      setError(message);
+      throw err;
+    }
     finally { setLoading(false); }
   }, []);
 
@@ -20,7 +28,15 @@ export function useTasks() {
     });
     socketClient.on('task:created', upsert);
     socketClient.on('task:updated', upsert);
-    return () => { socketClient.off('task:created', upsert); socketClient.off('task:updated', upsert); };
+    const refreshOnConnect = (connected: boolean) => {
+      if (connected) refresh().catch(() => {});
+    };
+    socketClient.addConnectionListener(refreshOnConnect);
+    return () => {
+      socketClient.off('task:created', upsert);
+      socketClient.off('task:updated', upsert);
+      socketClient.removeConnectionListener(refreshOnConnect);
+    };
   }, [refresh]);
 
   const update = useCallback(async (task: RunnerTask, status: TaskStatus, documents = task.documents) => {
@@ -29,5 +45,5 @@ export function useTasks() {
       ? current.filter((item) => item.id !== updated.id)
       : [updated, ...current.filter((item) => item.id !== updated.id)]);
   }, []);
-  return { tasks, loading, refresh, update };
+  return { tasks, loading, error, refresh, update };
 }

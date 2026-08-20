@@ -3,7 +3,7 @@
 **Purpose:** turn the current real-time courier-tracking prototype into a secure, reliable, supportable production service.
 
 **Assessment date:** 2026-08-06  
-**Scope reviewed:** `backend/`, `dashboard/`, `react-native-app/`, legacy `android-app/`, Docker and EAS configuration. This document records code-level observations; it does not replace a penetration test, load test, legal review, or production infrastructure review.
+**Scope reviewed:** `backend/`, `dashboard/`, `react-native-app/`, Docker and EAS configuration. This document records code-level observations; it does not replace a penetration test, load test, legal review, or production infrastructure review.
 
 ## Executive summary
 
@@ -65,14 +65,13 @@ React/Vite dispatcher dashboard (Leaflet)
 | History | Worker copies latest Redis state to PostgreSQL every 10 seconds | Basic trail query and indexed `(runner_id, ts)` reads. | It records only the sample visible at tick time, appends duplicates, and has no acknowledgement/idempotency guarantee. |
 | Dashboard | React + Vite + React Leaflet | Login, live map, roster, history trail, connection indicator. | JWT is in `localStorage`; UI is demo-oriented and has no authorization-aware error handling, audit trail, responsive/accessibility testing, or production hosting configuration. |
 | Expo mobile app | Expo 56, SecureStore, SQLite offline cache, background location task | Better candidate for a cross-platform future; secure token store and offline cache exist. | Backend host is hard-coded to emulator HTTP; sync marks records sent before server acknowledgement; no environment config, telemetry, test suite, or policy-ready privacy UX. |
-| Native Android app | Kotlin foreground service, Fused Location, Room, encrypted preferences | A capable Android-only implementation with a foreground-service model. | Legacy/duplicate product path, dynamically discovers LAN HTTP URL, allows cleartext traffic, no release hardening or tests. |
 | Local infrastructure | Docker Compose for Redis, PostgreSQL, backend | Good developer-demo setup. | Public database/cache ports, credentials and JWT secret in Compose, no TLS/reverse proxy/backups/secrets/monitoring. |
 
 ## Product decisions to make first
 
 These decisions change the data model and security design, so make them before substantial implementation:
 
-1. **Supported client — decided:** The Expo app (`react-native-app/`) is the production courier client for iOS and Android. Do not maintain the Kotlin Android client as an independent production path; keep `android-app/` only as legacy/reference code until it is formally retired. The Expo app still needs production environment configuration and reliable acknowledgement semantics.
+1. **Supported client — decided:** The Expo app (`react-native-app/`) is the sole production courier client for iOS and Android; the duplicate Kotlin Android client was retired. The Expo app still needs production environment configuration and reliable acknowledgement semantics.
 2. **Operating model:** Define organizations/tenants, dispatcher teams, runner assignments, and who may view a runner. The current model has only global `runner` and `dispatcher` roles.
 3. **Tracking policy:** Define when tracking starts/stops, expected update interval by delivery state, acceptable accuracy, retention duration, and whether a courier can pause tracking.
 4. **Delivery semantics:** Decide whether the system needs at-least-once, exactly-once-effect (recommended), or best-effort history. For courier auditability, use client-generated event IDs and idempotent server storage.

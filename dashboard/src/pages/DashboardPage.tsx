@@ -377,8 +377,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-72px)] flex-col bg-panel text-ink">
-      <main className="grid h-full min-h-0 grid-cols-1 gap-3 overflow-hidden p-4 sm:gap-4 lg:grid-cols-[25fr_40fr_30fr] lg:px-7 lg:py-7">
+    <div className="flex min-h-[calc(100dvh-116px)] flex-col bg-panel text-ink lg:h-[calc(100dvh-72px)] lg:min-h-0">
+      <main className="grid grid-cols-1 gap-3 overflow-visible p-4 sm:gap-4 lg:h-full lg:min-h-0 lg:grid-cols-[25fr_40fr_30fr] lg:overflow-hidden lg:px-7 lg:py-7">
         <Card
           className="order-1 min-w-0 overflow-hidden rounded-[24px] border border-[#e3e1e9] bg-surface shadow-sm"
           color="default"

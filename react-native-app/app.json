@@ -9,6 +9,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.trackrunner.app",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "TrackRunner needs your location to track deliveries.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "TrackRunner needs background location to keep tracking deliveries when the app is closed.",
@@ -58,19 +59,7 @@
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }
-      ],
-      [
-        "expo-notifications",
-        {
-          "color": "#0066CC"
-        }
       ]
-    ],
-    "extra": {
-      "eas": {
-        "projectId": "25daebd0-c323-4978-a129-18c46023e9cd"
-      }
-    },
-    "owner": "timusdasarp"
+    ]
   }
 }

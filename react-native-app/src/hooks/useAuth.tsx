@@ -6,6 +6,8 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { SessionStore } from '../services/sessionStore';
 import { api } from '../services/api';
 import { socketClient } from '../services/socketClient';
+import { LocationTracking } from '../services/locationTracking';
+import { registerForTaskNotifications, unregisterForTaskNotifications } from '../services/pushNotifications';
 import type { User } from '../types';
 
 interface AuthContextValue {
@@ -36,6 +38,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         socketClient.connect().catch((err) => {
           console.warn('[Auth] Socket connection failed on startup:', err);
         });
+        registerForTaskNotifications().catch((err) => {
+          console.warn('[Auth] Push registration failed on startup:', err);
+        });
       }
     } catch (err) {
       console.error('[Auth] Check failed:', err);
@@ -59,9 +64,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.warn('[Auth] Socket connection failed:', err);
     }
+    registerForTaskNotifications().catch((err) => {
+      console.warn('[Auth] Push registration failed:', err);
+    });
   }
 
   async function logout() {
+    try {
+      await unregisterForTaskNotifications();
+    } catch (err) {
+      console.warn('[Auth] Could not unregister push notifications during logout:', err);
+    }
+    try {
+      await LocationTracking.stopTracking();
+    } catch (err) {
+      console.warn('[Auth] Could not stop location tracking during logout:', err);
+    }
     try {
       await api.logout();
     } catch (err) {
