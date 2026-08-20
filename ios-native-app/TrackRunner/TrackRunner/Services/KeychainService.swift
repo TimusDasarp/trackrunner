@@ -6,12 +6,12 @@
 import Foundation
 import Security
 
-struct StoredSession: Codable, Equatable, Sendable {
+nonisolated struct StoredSession: Codable, Equatable, Sendable {
     let token: String
     let user: User
 }
 
-enum KeychainError: LocalizedError {
+nonisolated enum KeychainError: LocalizedError {
     case unexpectedStatus(OSStatus)
     case invalidData
 
@@ -25,7 +25,7 @@ enum KeychainError: LocalizedError {
     }
 }
 
-final class KeychainService: Sendable {
+nonisolated final class KeychainService: Sendable {
     static let shared = KeychainService()
 
     private let service = "TrackRunner.Session"

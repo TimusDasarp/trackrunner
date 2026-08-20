@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import { paperTheme } from './theme/paperTheme';
 import LoginScreen from './screens/LoginScreen';
 import MainScreen from './screens/MainScreen';
+import TaskDetailScreen from './screens/TaskDetailScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -25,7 +26,10 @@ function RootNavigator() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isAuthenticated ? (
-          <Stack.Screen name="Main" component={MainScreen} />
+          <>
+            <Stack.Screen name="Main" component={MainScreen} />
+            <Stack.Screen name="TaskDetail" component={TaskDetailScreen} />
+          </>
         ) : (
           <Stack.Screen name="Login" component={LoginScreen} />
         )}

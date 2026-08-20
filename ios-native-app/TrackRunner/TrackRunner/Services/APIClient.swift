@@ -98,11 +98,7 @@ actor APIClient {
     }
 
     private func makeURL(path: String) throws -> URL {
-        let rawBaseURL = ProcessInfo.processInfo.environment["API_BASE_URL"]
-            ?? Bundle.main.object(forInfoDictionaryKey: "API_BASE_URL") as? String
-        guard let rawBaseURL, !rawBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw APIError.missingBaseURL
-        }
+        let rawBaseURL = try APIConfiguration.apiBaseURL()
         guard var components = URLComponents(string: rawBaseURL) else {
             throw APIError.invalidBaseURL
         }
@@ -117,6 +113,48 @@ actor APIClient {
             throw APIError.invalidBaseURL
         }
         return url
+    }
+
+    private func configuredBaseURL() -> String? {
+        if let environmentValue = ProcessInfo.processInfo.environment["API_BASE_URL"] {
+            return normalizedBaseURL(environmentValue)
+        }
+        if let expoOrigin = ProcessInfo.processInfo.environment["EXPO_PUBLIC_API_BASE_URL"] {
+            return normalizedBaseURL(expoOrigin, appendingAPIPathIfNeeded: true)
+        }
+        if let infoPlistValue = Bundle.main.object(forInfoDictionaryKey: "API_BASE_URL") as? String {
+            return normalizedBaseURL(infoPlistValue)
+        }
+        guard
+            let configURL = Bundle.main.url(forResource: "Config", withExtension: "xcconfig"),
+            let contents = try? String(contentsOf: configURL, encoding: .utf8)
+        else {
+            return nil
+        }
+
+        return contents
+            .split(separator: "\n")
+            .compactMap { line -> String? in
+                let parts = line.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+                guard parts.count == 2, parts[0] == "API_BASE_URL" else {
+                    return nil
+                }
+                return normalizedBaseURL(parts[1])
+            }
+            .first
+    }
+
+    private func normalizedBaseURL(_ value: String, appendingAPIPathIfNeeded: Bool = false) -> String {
+        let baseURL = value
+            .replacingOccurrences(of: ":/$()/", with: "://")
+            .replacingOccurrences(of: "$()", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+
+        guard appendingAPIPathIfNeeded, !baseURL.hasSuffix("/api") else {
+            return baseURL
+        }
+        return "\(baseURL)/api"
     }
 }
 
@@ -140,33 +178,33 @@ enum APIError: LocalizedError, Equatable {
     }
 }
 
-struct RunnerTaskDocumentUpdate: Codable, Equatable, Sendable {
+nonisolated struct RunnerTaskDocumentUpdate: Codable, Equatable, Sendable {
     let id: String
     let collected: Bool
 }
 
-private struct LoginRequest: Encodable {
+nonisolated private struct LoginRequest: Encodable, Sendable {
     let email: String
     let password: String
 }
 
-private struct UpdateTaskRequest: Encodable {
+nonisolated private struct UpdateTaskRequest: Encodable, Sendable {
     let status: TaskStatus
     let documents: [RunnerTaskDocumentUpdate]?
 }
 
-private struct TaskListResponse: Decodable {
+nonisolated private struct TaskListResponse: Decodable, Sendable {
     let tasks: [RunnerTask]
 }
 
-private struct TaskResponse: Decodable {
+nonisolated private struct TaskResponse: Decodable, Sendable {
     let task: RunnerTask
 }
 
-private struct APIErrorResponse: Decodable {
+nonisolated private struct APIErrorResponse: Decodable, Sendable {
     let error: String?
     let message: String?
 }
 
-private struct EmptyRequest: Encodable {}
-private struct EmptyResponse: Decodable {}
+nonisolated private struct EmptyRequest: Encodable, Sendable {}
+nonisolated private struct EmptyResponse: Decodable, Sendable {}

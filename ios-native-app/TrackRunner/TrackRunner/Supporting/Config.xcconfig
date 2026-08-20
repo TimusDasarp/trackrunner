@@ -1,0 +1,2 @@
+// Mirrors react-native-app/.env.local: EXPO_PUBLIC_API_BASE_URL + /api
+API_BASE_URL = https:/$()/trackrunner-staging-api.onrender.com/api

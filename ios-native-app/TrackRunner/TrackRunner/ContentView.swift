@@ -6,24 +6,25 @@
 import SwiftUI
 
 struct ContentView: View {
-    @EnvironmentObject private var appState: AppState
-
     var body: some View {
-        switch appState.sessionState {
-        case .loading:
-            ProgressView("Loading session")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .signedOut:
-            LoginView()
-        case .signedIn:
-            TaskListView()
+        VStack(spacing: 14) {
+            Image(systemName: "location.north.circle.fill")
+                .font(.system(size: 54, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.blue)
+            Text("TrackRunner")
+                .font(.title.bold())
+            Text("Courier task workflow")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemGroupedBackground))
     }
 }
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
-            .environmentObject(AppState())
     }
 }

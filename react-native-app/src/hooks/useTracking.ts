@@ -5,6 +5,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { AppState } from 'react-native';
 import { LocationTracking } from '../services/locationTracking';
+import type { TrackingPermissionState } from '../services/locationTracking';
 import { SyncService } from '../services/syncService';
 import { socketClient } from '../services/socketClient';
 import type { LocationPoint } from '../types';
@@ -14,31 +15,40 @@ export function useTracking() {
   const [lastLocation, setLastLocation] = useState<LocationPoint | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
+  const [permissionState, setPermissionState] = useState<TrackingPermissionState>('denied');
 
   async function refreshPendingCount() {
     const count = await SyncService.getPendingCount();
     setPendingCount(count);
   }
 
-  const startAutomatically = useCallback(async () => {
-    await LocationTracking.startTracking();
-    setIsTracking(true);
+  const enableBackgroundTracking = useCallback(async () => {
+    const permission = await LocationTracking.startTracking();
+    setPermissionState(permission);
+    setIsTracking(permission === 'background');
     setIsConnected(socketClient.isConnected());
     await refreshPendingCount();
+    return permission;
   }, []);
 
   useEffect(() => {
     let active = true;
     const initialiseTracking = async () => {
       try {
+        const permission = await LocationTracking.getPermissionState();
         const tracking = await LocationTracking.isTracking();
-        if (!tracking) await startAutomatically();
-        else {
+        if (permission === 'background' && tracking) {
           await socketClient.setTrackingActive(true);
           if (active) setIsTracking(true);
+        } else {
+          // A permission can be revoked in Settings while a task remains
+          // registered. Stop it so the UI never promises live background GPS.
+          if (tracking) await LocationTracking.stopTracking();
+          if (active) setIsTracking(false);
         }
+        if (active) setPermissionState(permission);
       } catch (err) {
-        console.warn('[Tracking] Automatic start failed:', err);
+        console.warn('[Tracking] Tracking status check failed:', err);
       } finally {
         if (active) setIsConnected(socketClient.isConnected());
         await refreshPendingCount();
@@ -60,7 +70,7 @@ export function useTracking() {
       socketClient.removeConnectionListener(onConnectionChange);
       clearInterval(interval);
     };
-  }, [startAutomatically]);
+  }, []);
 
   useEffect(() => {
     let running = false;
@@ -99,6 +109,8 @@ export function useTracking() {
     lastLocation,
     pendingCount,
     isConnected,
+    permissionState,
+    enableBackgroundTracking,
     syncNow,
     refreshPendingCount,
   };

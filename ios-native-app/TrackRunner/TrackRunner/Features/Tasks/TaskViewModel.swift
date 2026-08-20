@@ -9,6 +9,7 @@ import Foundation
 @MainActor
 final class TaskViewModel: ObservableObject {
     private let apiClient: APIClient
+    private var taskChangeObserver: NSObjectProtocol?
 
     @Published private(set) var tasks: [RunnerTask] = []
     @Published private(set) var isLoading = false
@@ -16,7 +17,10 @@ final class TaskViewModel: ObservableObject {
     @Published private(set) var updatingTaskIDs: Set<String> = []
 
     var prioritizedTasks: [RunnerTask] {
-        tasks.sorted { lhs, rhs in
+        tasks.filter { task in
+            task.status != .completed && task.status != .unableToComplete
+        }
+        .sorted { lhs, rhs in
             let leftRank = lhs.priority?.sortRank ?? TaskPriority.normal.sortRank
             let rightRank = rhs.priority?.sortRank ?? TaskPriority.normal.sortRank
             if leftRank == rightRank {
@@ -28,17 +32,53 @@ final class TaskViewModel: ObservableObject {
 
     init(apiClient: APIClient = .shared) {
         self.apiClient = apiClient
+        taskChangeObserver = NotificationCenter.default.addObserver(
+            forName: .runnerTaskDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let task = notification.object as? RunnerTask else {
+                return
+            }
+            Task { @MainActor [weak self] in
+                self?.upsert(task)
+            }
+        }
     }
 
-    func loadTasks() async {
-        isLoading = true
-        errorMessage = nil
+    deinit {
+        if let taskChangeObserver {
+            NotificationCenter.default.removeObserver(taskChangeObserver)
+        }
+    }
+
+    func loadTasks(showLoading: Bool = true) async {
+        if showLoading {
+            isLoading = true
+        }
+        if showLoading || tasks.isEmpty {
+            errorMessage = nil
+        }
         do {
             tasks = try await apiClient.getTasks()
+            errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            if showLoading || tasks.isEmpty {
+                errorMessage = error.localizedDescription
+            }
         }
-        isLoading = false
+        if showLoading {
+            isLoading = false
+        }
+    }
+
+    func startAutoRefresh() async {
+        await loadTasks()
+
+        while !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            await loadTasks(showLoading: false)
+        }
     }
 
     func task(for id: String) -> RunnerTask? {
@@ -79,16 +119,21 @@ final class TaskViewModel: ObservableObject {
                 status: status,
                 documents: documents
             )
-            replace(updatedTask)
+            upsert(updatedTask)
         } catch {
             errorMessage = error.localizedDescription
         }
         updatingTaskIDs.remove(task.id)
     }
 
-    private func replace(_ task: RunnerTask) {
+    private func upsert(_ task: RunnerTask) {
+        if task.status == .completed || task.status == .unableToComplete {
+            tasks.removeAll { $0.id == task.id }
+            return
+        }
+
         guard let index = tasks.firstIndex(where: { $0.id == task.id }) else {
-            tasks.append(task)
+            tasks.insert(task, at: 0)
             return
         }
         tasks[index] = task

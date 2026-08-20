@@ -10,6 +10,7 @@ import Foundation
 final class AppState: ObservableObject {
     private let apiClient: APIClient
     private let keychainService: KeychainService
+    private let liveLocationService: LiveLocationService
 
     @Published private(set) var sessionState: SessionState = .loading
 
@@ -22,10 +23,12 @@ final class AppState: ObservableObject {
 
     init(
         apiClient: APIClient = .shared,
-        keychainService: KeychainService? = nil
+        keychainService: KeychainService? = nil,
+        liveLocationService: LiveLocationService? = nil
     ) {
         self.apiClient = apiClient
         self.keychainService = keychainService ?? KeychainService.shared
+        self.liveLocationService = liveLocationService ?? LiveLocationService.shared
 
         Task {
             await restoreSession()
@@ -41,6 +44,7 @@ final class AppState: ObservableObject {
             }
             await apiClient.setAuthToken(session.token)
             sessionState = .signedIn(session.user)
+            await liveLocationService.start(user: session.user, token: session.token)
         } catch {
             try? keychainService.clearSession()
             await apiClient.setAuthToken(nil)
@@ -53,12 +57,17 @@ final class AppState: ObservableObject {
             email: email.trimmingCharacters(in: .whitespacesAndNewlines),
             password: password
         )
+        guard response.user.role == .runner else {
+            throw APIError.requestFailed("This app is for courier accounts. Please sign in with a runner account.")
+        }
         try keychainService.saveSession(StoredSession(token: response.token, user: response.user))
         await apiClient.setAuthToken(response.token)
         sessionState = .signedIn(response.user)
+        await liveLocationService.start(user: response.user, token: response.token)
     }
 
     func signOut() async {
+        await liveLocationService.stop()
         await apiClient.logout()
         try? keychainService.clearSession()
         await apiClient.setAuthToken(nil)

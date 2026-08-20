@@ -44,6 +44,7 @@ export function useTasks() {
     setTasks((current) => updated.status === 'completed' || updated.status === 'unable_to_complete'
       ? current.filter((item) => item.id !== updated.id)
       : [updated, ...current.filter((item) => item.id !== updated.id)]);
+    return updated;
   }, []);
   return { tasks, loading, error, refresh, update };
 }

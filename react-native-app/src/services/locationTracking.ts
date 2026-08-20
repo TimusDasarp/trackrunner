@@ -12,6 +12,8 @@ import { socketClient } from './socketClient';
 import { SyncService } from './syncService';
 import type { LocationPoint } from '../types';
 
+export type TrackingPermissionState = 'background' | 'foreground_only' | 'denied';
+
 // Define the background task
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   if (error) {
@@ -61,6 +63,14 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
 });
 
 export const LocationTracking = {
+  async getPermissionState(): Promise<TrackingPermissionState> {
+    const foreground = await Location.getForegroundPermissionsAsync();
+    if (foreground.status !== 'granted') return 'denied';
+
+    const background = await Location.getBackgroundPermissionsAsync();
+    return background.status === 'granted' ? 'background' : 'foreground_only';
+  },
+
   /**
    * Capture and upload a foreground fix. Background callbacks are subject to
    * OS scheduling, so this keeps an open runner app visibly live even when
@@ -83,20 +93,27 @@ export const LocationTracking = {
     return true;
   },
 
-  async requestPermissions(): Promise<boolean> {
+  async requestPermissions(): Promise<TrackingPermissionState> {
     const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
     if (foregroundStatus !== 'granted') {
-      return false;
+      return 'denied';
     }
 
+    // On Android 11+, Expo opens the system Settings screen for this request.
+    // This must be initiated while the runner is actively enabling tracking.
     const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
-    return backgroundStatus === 'granted';
+    return backgroundStatus === 'granted' ? 'background' : 'foreground_only';
   },
 
-  async startTracking(): Promise<boolean> {
-    const hasPermission = await this.requestPermissions();
-    if (!hasPermission) {
+  async startTracking(): Promise<TrackingPermissionState> {
+    const permission = await this.requestPermissions();
+    if (permission === 'denied') {
       throw new Error('Location permission not granted');
+    }
+    if (permission !== 'background') {
+      // Do not claim background coverage when the runner chose “While using
+      // the app”. Foreground fixes are still captured by useTracking.
+      return permission;
     }
 
     // Ensure socket is connected when tracking starts
@@ -134,7 +151,7 @@ export const LocationTracking = {
     // as tracking is turned on, then let the background task handle updates.
     await this.captureAndSyncCurrentLocation();
 
-    return true;
+    return permission;
   },
 
   async stopTracking(): Promise<void> {

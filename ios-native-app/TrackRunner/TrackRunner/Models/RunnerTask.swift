@@ -4,8 +4,9 @@
 //
 
 import Foundation
+import SwiftUI
 
-struct RunnerTask: Codable, Equatable, Identifiable, Sendable {
+nonisolated struct RunnerTask: Codable, Equatable, Identifiable, Sendable {
     let id: String
     let runnerId: String
     let clientName: String
@@ -20,14 +21,14 @@ struct RunnerTask: Codable, Equatable, Identifiable, Sendable {
     let documents: [RunnerTaskDocument]
 }
 
-struct RunnerTaskDocument: Codable, Equatable, Identifiable, Sendable {
+nonisolated struct RunnerTaskDocument: Codable, Equatable, Identifiable, Sendable {
     let id: String
     let name: String
     let collected: Bool
     let collectedAt: String?
 }
 
-enum TaskPriority: String, Codable, Equatable, CaseIterable, Sendable {
+nonisolated enum TaskPriority: String, Codable, Equatable, CaseIterable, Sendable {
     case low
     case normal
     case high
@@ -49,9 +50,35 @@ enum TaskPriority: String, Codable, Equatable, CaseIterable, Sendable {
             3
         }
     }
+
+    var iconName: String {
+        switch self {
+        case .urgent:
+            "exclamationmark.octagon.fill"
+        case .high:
+            "exclamationmark.triangle.fill"
+        case .normal:
+            "circle.fill"
+        case .low:
+            "arrow.down.circle.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .urgent:
+            .red
+        case .high:
+            .orange
+        case .normal:
+            .blue
+        case .low:
+            .secondary
+        }
+    }
 }
 
-enum TaskStatus: String, Codable, Equatable, CaseIterable, Sendable {
+nonisolated enum TaskStatus: String, Codable, Equatable, CaseIterable, Sendable {
     case sent
     case acknowledged
     case inProgress = "in_progress"
@@ -96,6 +123,36 @@ enum TaskStatus: String, Codable, Equatable, CaseIterable, Sendable {
             "Mark Completed"
         case .completed, .unableToComplete:
             nil
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .sent:
+            "paperplane.fill"
+        case .acknowledged:
+            "checkmark.message.fill"
+        case .inProgress:
+            "figure.run"
+        case .completed:
+            "checkmark.circle.fill"
+        case .unableToComplete:
+            "xmark.octagon.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .sent:
+            .blue
+        case .acknowledged:
+            .indigo
+        case .inProgress:
+            .orange
+        case .completed:
+            .green
+        case .unableToComplete:
+            .red
         }
     }
 }
