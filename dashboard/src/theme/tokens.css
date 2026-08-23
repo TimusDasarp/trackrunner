@@ -1,0 +1,30 @@
+:root {
+  /* Spark Capital palette, expressed as semantic UI roles. */
+  --color-brand: #003766;
+  --color-brand-hover: #0f2734;
+  --color-brand-soft: #e8f0f6;
+  --color-accent: #ff7f5a;
+  --color-accent-hover: #db674b;
+
+  --surface-app: #faf5f1;
+  --surface-canvas: #fcfcfc;
+  --surface-raised: #ffffff;
+  --surface-muted: #f3f0ed;
+  --surface-selected: #e8f0f6;
+
+  --content-primary: #102038;
+  --content-secondary: #5e6a69;
+  --content-disabled: #7d8590;
+  --border-subtle: #e5e1dc;
+  --border-strong: #b8bdcc;
+
+  --status-success: #1f7a5a;
+  --status-success-bg: #e6f4ef;
+  --status-warning: #9a5a14;
+  --status-warning-bg: #fff1dc;
+  --status-danger: #b8432b;
+  --status-danger-bg: #fde9e4;
+
+  --shadow-card: 0 8px 24px rgb(16 32 56 / 0.06);
+  --focus-ring: 0 0 0 3px rgb(255 127 90 / 0.28);
+}

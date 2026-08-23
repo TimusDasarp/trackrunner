@@ -61,6 +61,7 @@ function normaliseIndianMobile(value: string): string | null {
 export default function DashboardPage() {
   const { runners, refresh } = useRunners();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [isMapOpen, setIsMapOpen] = useState(() => window.innerWidth >= 1024);
   const [trail, setTrail] = useState<Array<[number, number]>>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [formMode, setFormMode] = useState<"create" | "rename" | null>(null);
@@ -73,7 +74,7 @@ export default function DashboardPage() {
   const [documentTypes, setDocumentTypes] = useState<string[]>([]);
   const [taskError, setTaskError] = useState<string | null>(null);
   const [activeTasks, setActiveTasks] = useState<DashboardTask[]>([]);
-  const [taskTab, setTaskTab] = useState<"active" | "completed">("active");
+  const [taskTab, setTaskTab] = useState<"active" | "completed" | "incomplete">("active");
   const [boardTasks, setBoardTasks] = useState<DashboardTask[]>([]);
   const [pendingDeletion, setPendingDeletion] = useState<DashboardTask | null>(
     null,
@@ -161,9 +162,12 @@ export default function DashboardPage() {
             : [task, ...current.filter((item) => item.id !== task.id)],
         );
       setBoardTasks((current) => {
-        const isCompleted =
-          task.status === "completed" || task.status === "unable_to_complete";
-        if ((taskTab === "completed") !== isCompleted)
+        const matchesTab = taskTab === "completed"
+          ? task.status === "completed"
+          : taskTab === "incomplete"
+            ? task.status === "unable_to_complete"
+            : task.status !== "completed" && task.status !== "unable_to_complete";
+        if (!matchesTab)
           return current.filter((item) => item.id !== task.id);
         return [task, ...current.filter((item) => item.id !== task.id)];
       });
@@ -378,15 +382,15 @@ export default function DashboardPage() {
 
   return (
     <div className="flex min-h-[calc(100dvh-116px)] flex-col bg-panel text-ink lg:h-[calc(100dvh-72px)] lg:min-h-0">
-      <main className="grid grid-cols-1 gap-3 overflow-visible p-4 sm:gap-4 lg:h-full lg:min-h-0 lg:grid-cols-[25fr_40fr_30fr] lg:overflow-hidden lg:px-7 lg:py-7">
+      <main className="grid grid-cols-1 gap-3 overflow-visible p-4 sm:gap-4 lg:h-full lg:min-h-0 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.65fr)_minmax(260px,0.8fr)] lg:overflow-hidden lg:px-7 lg:py-7">
         <Card
-          className="order-1 min-w-0 overflow-hidden rounded-[24px] border border-[#e3e1e9] bg-surface shadow-sm"
+          className="order-1 min-w-0 overflow-hidden rounded-[24px] border border-border bg-surface shadow-[var(--shadow-card)]"
           color="default"
         >
-          <div className="flex items-center justify-between border-b border-[#e3e1e9] px-5 py-4">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div className="text-sm font-semibold">Available Runners</div>
           </div>
-          <div className="grid grid-cols-2 gap-2 border-b border-[#e3e1e9] bg-[#fbfaff] p-3">
+          <div className="grid grid-cols-2 gap-2 border-b border-border bg-surface-variant p-3">
             <Metric
               label="Live"
               value={statusCounts.live}
@@ -415,44 +419,45 @@ export default function DashboardPage() {
           />
         </Card>
 
-        <Card
-          className="order-2 flex min-h-[620px] min-w-0 flex-col overflow-hidden rounded-[24px] border border-[#e3e1e9] bg-surface shadow-sm"
-          color="default"
-        >
-          <div className="border-b border-[#e3e1e9] shrink-0">
-            <div className="px-5 pt-4 text-sm font-semibold">
-              Runner details
+        <div className="order-2 flex min-w-0 flex-col gap-3 overflow-hidden lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+          <Card
+            className="min-w-0 overflow-hidden rounded-[24px] border border-border bg-surface shadow-[var(--shadow-card)]"
+            color="default"
+          >
+            <div className="border-b border-border">
+              <div className="px-5 pt-4 text-sm font-semibold">
+                Runner details
+              </div>
+              <RunnerDetail
+                runner={selected}
+                trail={trail}
+                onRename={openRename}
+                onCreateTask={openTask}
+                tasks={activeTasks}
+              />
             </div>
-            <RunnerDetail
-              runner={selected}
-              trail={trail}
-              onRename={openRename}
-              onCreateTask={openTask}
-              tasks={activeTasks}
-            />
-          </div>
-          <div className="min-h-[400px] flex-1 p-3 pt-0">
-            <RunnerMap
-              runners={runners}
-              selectedId={selectedId}
-              trail={trail}
-              onSelect={(runnerId) => setSelectedId(runnerId || null)}
-              viewerLocation={viewerLocation}
-            />
-          </div>
-        </Card>
-
-        <div className="order-3 min-w-0">
+          </Card>
           <TaskBoard
-            tasks={boardTasks}
+            tasks={selectedId ? boardTasks.filter((task) => task.runnerId === selectedId) : []}
             tab={taskTab}
             onTabChange={setTaskTab}
+            selectedRunnerName={selected?.displayName ?? null}
             runners={runners}
-            onSelectRunner={setSelectedId}
             onEdit={openEditTask}
             onDelete={requestDeleteTask}
           />
         </div>
+
+        <Card
+          className="order-3 min-w-0 overflow-hidden rounded-[24px] border border-border bg-surface shadow-[var(--shadow-card)] lg:flex lg:min-h-0 lg:flex-col"
+          color="default"
+        >
+          <div className="flex items-center justify-between px-5 py-4">
+            <div><div className="text-sm font-semibold">Location</div><p className="mt-0.5 text-xs text-on-surface-variant">{selected?.hasLocation ? "Live location and route" : "Location is unavailable"}</p></div>
+            <button type="button" onClick={() => setIsMapOpen((open) => !open)} className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-surface-variant" aria-expanded={isMapOpen}>{isMapOpen ? "Hide map" : "View map"}</button>
+          </div>
+          {isMapOpen && <div className="border-t border-border p-3 lg:min-h-0 lg:flex-1"><RunnerMap runners={runners} selectedId={selectedId} trail={trail} onSelect={(runnerId) => setSelectedId(runnerId || null)} viewerLocation={viewerLocation} compact /></div>}
+        </Card>
       </main>
 
       {formMode && (
@@ -475,7 +480,7 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={() => setFormMode(null)}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-2xl text-on-surface-variant hover:bg-[#f0eff6]"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-2xl text-on-surface-variant hover:bg-surface-variant"
                 aria-label="Close"
               >
                 ×
@@ -483,7 +488,7 @@ export default function DashboardPage() {
             </div>
             <label className="block text-sm mb-1">Display name</label>
             <input
-              className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2 focus:outline-none focus:border-accent"
+              className="mb-3 w-full rounded-xl border border-border bg-transparent px-3 py-2 focus:border-accent focus:outline-none"
               value={form.displayName}
               onChange={(e) =>
                 setForm({ ...form, displayName: e.target.value })
@@ -496,7 +501,7 @@ export default function DashboardPage() {
               <>
                 <label className="block text-sm mb-1">Runner email</label>
                 <input
-                  className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2 focus:outline-none focus:border-accent"
+                className="mb-3 w-full rounded-xl border border-border bg-transparent px-3 py-2 focus:border-accent focus:outline-none"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   required
@@ -504,7 +509,7 @@ export default function DashboardPage() {
                 />
                 <label className="block text-sm mb-1">Temporary password</label>
                 <input
-                  className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2 focus:outline-none focus:border-accent"
+                className="mb-3 w-full rounded-xl border border-border bg-transparent px-3 py-2 focus:border-accent focus:outline-none"
                   value={form.password}
                   onChange={(e) =>
                     setForm({ ...form, password: e.target.value })
@@ -565,7 +570,7 @@ export default function DashboardPage() {
                   setTaskRunner(null);
                   setEditingTask(null);
                 }}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-2xl text-on-surface-variant hover:bg-[#f0eff6]"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-2xl text-on-surface-variant hover:bg-surface-variant"
                 aria-label="Close task form"
               >
                 ×
@@ -573,7 +578,7 @@ export default function DashboardPage() {
             </div>
             <label className="block text-sm mb-1">Client name</label>
             <input
-              className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2"
+              className="mb-3 w-full rounded-xl border border-border bg-transparent px-3 py-2"
               required
               value={taskForm.clientName}
               onChange={(e) =>
@@ -605,7 +610,7 @@ export default function DashboardPage() {
               <span className="text-on-surface-variant">(India)</span>
             </label>
             <input
-              className="w-full rounded-xl border border-[#777680] bg-transparent px-3 py-2"
+              className="w-full rounded-xl border border-border bg-transparent px-3 py-2"
               required
               type="tel"
               inputMode="numeric"
@@ -629,7 +634,7 @@ export default function DashboardPage() {
               <label className="text-sm">
                 Priority
                 <select
-                  className="mt-1 w-full rounded-xl border border-[#777680] bg-transparent px-3 py-2"
+                  className="mt-1 w-full rounded-xl border border-border bg-transparent px-3 py-2"
                   value={taskForm.priority}
                   onChange={(e) =>
                     setTaskForm({
@@ -648,7 +653,7 @@ export default function DashboardPage() {
                 <span className="text-on-surface-variant">(optional)</span>
                 <input
                   type="datetime-local"
-                  className="mt-1 w-full rounded-xl border border-[#777680] bg-transparent px-3 py-2"
+                  className="mt-1 w-full rounded-xl border border-border bg-transparent px-3 py-2"
                   value={taskForm.dueAt}
                   onChange={(e) =>
                     setTaskForm({ ...taskForm, dueAt: e.target.value })

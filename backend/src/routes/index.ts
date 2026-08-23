@@ -382,11 +382,15 @@ apiRouter.post("/runners/:id/tasks", requireDispatcher, async (req: any, res) =>
 });
 
 apiRouter.get("/tasks", requireUser, async (req: any, res) => {
-  const scope = req.query.scope === "completed" ? "completed" : "active";
+  const scope = ["active", "completed", "incomplete"].includes(String(req.query.scope))
+    ? String(req.query.scope)
+    : "active";
   const runnerFilter = req.user.role === "runner" ? "AND runner_id = $2" : "AND dispatcher_id = $2";
   const statusFilter = scope === "completed"
-    ? "AND status IN ('completed', 'unable_to_complete')"
-    : "AND status NOT IN ('completed', 'unable_to_complete')";
+    ? "AND status = 'completed'"
+    : scope === "incomplete"
+      ? "AND status = 'unable_to_complete'"
+      : "AND status NOT IN ('completed', 'unable_to_complete')";
   const { rows } = await pool.query(`SELECT * FROM runner_tasks WHERE organization_id = $1 ${runnerFilter} ${statusFilter} ORDER BY COALESCE(completed_at, created_at) DESC`, [req.user.organizationId, req.user.sub]);
   const tasks = await Promise.all(rows.map((row) => getTask(String(row.id), String(req.user.organizationId))));
   res.json({ tasks });

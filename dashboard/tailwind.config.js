@@ -6,12 +6,15 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: "#1b1b1f",
-        panel: "#f8f7ff",
-        accent: "#405f90",
-        surface: "#fdfbff",
-        "surface-variant": "#e0e2ec",
-        "on-surface-variant": "#43474e",
+        ink: "var(--content-primary)",
+        panel: "var(--surface-app)",
+        accent: "var(--color-brand)",
+        surface: "var(--surface-raised)",
+        "surface-variant": "var(--surface-muted)",
+        "on-surface-variant": "var(--content-secondary)",
+        border: "var(--border-subtle)",
+        "brand-soft": "var(--color-brand-soft)",
+        "status-success": "var(--status-success)",
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],

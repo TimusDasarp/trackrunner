@@ -29,9 +29,10 @@ interface Props {
   trail: Array<[number, number]>;
   onSelect: (runnerId: string) => void;
   viewerLocation: { lat: number; lon: number } | null;
+  compact?: boolean;
 }
 
-export default function RunnerMap({ runners, selectedId, trail, onSelect, viewerLocation }: Props) {
+export default function RunnerMap({ runners, selectedId, trail, onSelect, viewerLocation, compact = false }: Props) {
   const initialCenter = useMemo<[number, number]>(() => {
     const list = Object.values(runners).filter((runner) => runner.hasLocation && getRunnerStatus(runner) === "live");
     if (list.length > 0) return [list[0].lat!, list[0].lon!];
@@ -48,7 +49,7 @@ export default function RunnerMap({ runners, selectedId, trail, onSelect, viewer
 
   return (
     <APIProvider apiKey={googleMapsApiKey} libraries={["places"]}>
-      <Map defaultCenter={{ lat: initialCenter[0], lng: initialCenter[1] }} defaultZoom={selected ? 16 : 13} mapId={googleMapsMapId} className="h-full w-full rounded-2xl" style={{ minHeight: 400 }} gestureHandling="greedy" zoomControl scrollwheel disableDoubleClickZoom={false}>
+      <Map defaultCenter={{ lat: initialCenter[0], lng: initialCenter[1] }} defaultZoom={selected ? 16 : 13} mapId={googleMapsMapId} className="h-full w-full rounded-2xl" style={{ minHeight: compact ? 240 : 400 }} gestureHandling="greedy" zoomControl scrollwheel disableDoubleClickZoom={false}>
         {liveRunners.map((r) => (
           <AdvancedMarker
           key={r.runnerId}
