@@ -55,6 +55,9 @@ export const config = {
   flushIntervalMs: positiveInteger("FLUSH_INTERVAL_MS", 10_000),
   firebaseServiceAccountPath: process.env.FIREBASE_SERVICE_ACCOUNT_PATH,
   firebaseServiceAccountJson: process.env.FIREBASE_SERVICE_ACCOUNT_JSON,
+  supabaseUrl: process.env.SUPABASE_URL,
+  supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  supabaseStorageBucket: process.env.SUPABASE_STORAGE_BUCKET ?? "task-documents",
   corsOrigins,
   trustProxy: process.env.TRUST_PROXY === "true",
 };

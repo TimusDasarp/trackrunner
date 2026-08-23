@@ -5,7 +5,8 @@ import RunnerList from "../components/RunnerList";
 import RunnerDetail from "../components/RunnerDetail";
 import TaskBoard, { type Task as BoardTask } from "../components/TaskBoard";
 import AddressPicker, { type AddressPin } from "../components/AddressPicker";
-import { api } from "../lib/auth";
+import { api, getToken } from "../lib/auth";
+import { apiUrl } from "../lib/config";
 import { getSocket } from "../lib/socket";
 import { getRunnerStatus, type RunnerState } from "../lib/types";
 import { Card } from "@material-tailwind/react";
@@ -73,7 +74,7 @@ export default function DashboardPage() {
   const [taskForm, setTaskForm] = useState<TaskForm>(emptyTaskForm);
   const [documentTypes, setDocumentTypes] = useState<string[]>([]);
   const [taskError, setTaskError] = useState<string | null>(null);
-  const [activeTasks, setActiveTasks] = useState<DashboardTask[]>([]);
+  const [taskAttachments, setTaskAttachments] = useState<File[]>([]);
   const [taskTab, setTaskTab] = useState<"active" | "completed" | "incomplete">("active");
   const [boardTasks, setBoardTasks] = useState<DashboardTask[]>([]);
   const [pendingDeletion, setPendingDeletion] = useState<DashboardTask | null>(
@@ -125,22 +126,6 @@ export default function DashboardPage() {
   const selected = selectedId ? (runners[selectedId] ?? null) : null;
 
   useEffect(() => {
-    if (!selectedId) return setActiveTasks([]);
-    api<{
-      tasks: Array<{
-        id: string;
-        runnerId: string;
-        clientName: string;
-        clientAddress: string;
-        status: string;
-        priority?: string;
-      }>;
-    }>(`/api/runners/${selectedId}/tasks`)
-      .then((response) => setActiveTasks(response.tasks ?? []))
-      .catch(() => setActiveTasks([]));
-  }, [selectedId]);
-
-  useEffect(() => {
     api<{ tasks: DashboardTask[] }>(`/api/tasks?scope=${taskTab}`)
       .then((response) => setBoardTasks(response.tasks ?? []))
       .catch(() => setBoardTasks([]));
@@ -155,12 +140,6 @@ export default function DashboardPage() {
       clientAddress: string;
       status: string;
     }) => {
-      if (task.runnerId === selectedId)
-        setActiveTasks((current) =>
-          task.status === "completed" || task.status === "unable_to_complete"
-            ? current.filter((item) => item.id !== task.id)
-            : [task, ...current.filter((item) => item.id !== task.id)],
-        );
       setBoardTasks((current) => {
         const matchesTab = taskTab === "completed"
           ? task.status === "completed"
@@ -335,16 +314,22 @@ export default function DashboardPage() {
           : undefined,
         documents,
       };
-      if (editingTask)
-        await api(`/api/tasks/${editingTask.id}`, {
+      const result = editingTask
+        ? await api<{ task: DashboardTask }>(`/api/tasks/${editingTask.id}`, {
           method: "PATCH",
           body: JSON.stringify(payload),
-        });
-      else
-        await api(`/api/runners/${taskRunner.runnerId}/tasks`, {
+        })
+        : await api<{ task: DashboardTask }>(`/api/runners/${taskRunner.runnerId}/tasks`, {
           method: "POST",
           body: JSON.stringify(payload),
         });
+      for (const file of taskAttachments) {
+        const formData = new FormData();
+        formData.append("file", file);
+        const response = await fetch(apiUrl(`/api/tasks/${result.task.id}/attachments`), { method: "POST", headers: { ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) }, body: formData });
+        if (!response.ok) throw new Error("Could not upload attachment");
+      }
+      setTaskAttachments([]);
       setTaskRunner(null);
       setEditingTask(null);
       setTaskTab("active");
@@ -419,33 +404,29 @@ export default function DashboardPage() {
           />
         </Card>
 
-        <div className="order-2 flex min-w-0 flex-col gap-3 overflow-hidden lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+        <div className="order-2 flex min-w-0 flex-col overflow-hidden lg:min-h-0 lg:pr-1">
           <Card
-            className="min-w-0 overflow-hidden rounded-[24px] border border-border bg-surface shadow-[var(--shadow-card)]"
+            className="flex min-w-0 flex-col overflow-hidden rounded-[24px] border border-border bg-surface shadow-[var(--shadow-card)] lg:min-h-0 lg:flex-1"
             color="default"
           >
             <div className="border-b border-border">
               <div className="px-5 pt-4 text-sm font-semibold">
                 Runner details
               </div>
-              <RunnerDetail
-                runner={selected}
-                trail={trail}
-                onRename={openRename}
-                onCreateTask={openTask}
-                tasks={activeTasks}
-              />
+              <RunnerDetail runner={selected} onRename={openRename} onCreateTask={openTask}>
+                <TaskBoard
+                  tasks={selectedId ? boardTasks.filter((task) => task.runnerId === selectedId) : []}
+                  tab={taskTab}
+                  onTabChange={setTaskTab}
+                  selectedRunnerName={selected?.displayName ?? null}
+                  runners={runners}
+                  embedded
+                  onEdit={openEditTask}
+                  onDelete={requestDeleteTask}
+                />
+              </RunnerDetail>
             </div>
           </Card>
-          <TaskBoard
-            tasks={selectedId ? boardTasks.filter((task) => task.runnerId === selectedId) : []}
-            tab={taskTab}
-            onTabChange={setTaskTab}
-            selectedRunnerName={selected?.displayName ?? null}
-            runners={runners}
-            onEdit={openEditTask}
-            onDelete={requestDeleteTask}
-          />
         </div>
 
         <Card
@@ -693,6 +674,8 @@ export default function DashboardPage() {
                 setTaskForm({ ...taskForm, customDocument: e.target.value })
               }
             />
+            <label className="mb-3 block text-sm">Task attachments <span className="text-on-surface-variant">(PDF, DOC, DOCX; max 25 MB each)</span><input className="mt-1 block w-full text-sm" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple onChange={(e) => setTaskAttachments(Array.from(e.target.files ?? []))} /></label>
+            {taskAttachments.length > 0 && <p className="mb-3 text-xs text-on-surface-variant">{taskAttachments.map((file) => file.name).join(", ")}</p>}
             <label className="block text-sm mb-1">Notes (optional)</label>
             <textarea
               className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2"

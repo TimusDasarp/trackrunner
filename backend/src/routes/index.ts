@@ -1,10 +1,12 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import multer from "multer";
 import { z } from "zod";
 import { pool } from "../db/pool";
 import { config } from "../config";
 import { sendTaskAssignmentPush } from "../services/pushNotifications";
+import { taskStorage, taskStorageBucket } from "../services/taskStorage";
 import {
   clearRunnerLocationData,
   getAllRunnerStates,
@@ -12,6 +14,8 @@ import {
 } from "../services/locationStore";
 
 export const apiRouter = Router();
+const taskUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 5 } });
+const allowedAttachmentTypes = new Set(["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]);
 
 const LoginSchema = z.object({
   email: z.string().email(),
@@ -394,6 +398,35 @@ apiRouter.get("/tasks", requireUser, async (req: any, res) => {
   const { rows } = await pool.query(`SELECT * FROM runner_tasks WHERE organization_id = $1 ${runnerFilter} ${statusFilter} ORDER BY COALESCE(completed_at, created_at) DESC`, [req.user.organizationId, req.user.sub]);
   const tasks = await Promise.all(rows.map((row) => getTask(String(row.id), String(req.user.organizationId))));
   res.json({ tasks });
+});
+
+apiRouter.get("/tasks/:id/attachments", requireDispatcher, async (req: any, res) => {
+  const { rows } = await pool.query("SELECT id, original_name, content_type, size_bytes, created_at FROM runner_task_attachments WHERE task_id = $1 AND organization_id = $2 ORDER BY created_at DESC", [req.params.id, req.user.organizationId]);
+  res.json({ attachments: rows.map((row) => ({ id: String(row.id), name: row.original_name, contentType: row.content_type, sizeBytes: Number(row.size_bytes), createdAt: row.created_at })) });
+});
+
+apiRouter.post("/tasks/:id/attachments", requireDispatcher, taskUpload.single("file"), async (req: any, res) => {
+  if (!taskStorage) return res.status(503).json({ error: "document storage is not configured" });
+  const file = req.file;
+  if (!file || !allowedAttachmentTypes.has(file.mimetype)) return res.status(400).json({ error: "only PDF, DOC, and DOCX files are allowed" });
+  const task = await getTask(String(req.params.id), String(req.user.organizationId));
+  if (!task || task.runnerId == null) return res.status(404).json({ error: "task not found" });
+  const extension = file.originalname.split(".").pop()?.toLowerCase() ?? "bin";
+  const path = `org/${req.user.organizationId}/tasks/${task.id}/${crypto.randomUUID()}.${extension}`;
+  const { error } = await taskStorage.storage.from(taskStorageBucket).upload(path, file.buffer, { contentType: file.mimetype, upsert: false });
+  if (error) return res.status(502).json({ error: "could not store document" });
+  const { rows } = await pool.query("INSERT INTO runner_task_attachments (task_id, organization_id, storage_path, original_name, content_type, size_bytes, uploaded_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, original_name, content_type, size_bytes, created_at", [task.id, req.user.organizationId, path, file.originalname, file.mimetype, file.size, req.user.sub]);
+  await recordTaskEvent(req.user.organizationId, task.id, req.user.sub, "attachment_added", { name: file.originalname });
+  res.status(201).json({ attachment: { id: String(rows[0].id), name: rows[0].original_name, contentType: rows[0].content_type, sizeBytes: Number(rows[0].size_bytes), createdAt: rows[0].created_at } });
+});
+
+apiRouter.get("/tasks/:id/attachments/:attachmentId/download", requireDispatcher, async (req: any, res) => {
+  if (!taskStorage) return res.status(503).json({ error: "document storage is not configured" });
+  const { rows } = await pool.query("SELECT storage_path FROM runner_task_attachments WHERE id = $1 AND task_id = $2 AND organization_id = $3", [req.params.attachmentId, req.params.id, req.user.organizationId]);
+  if (!rows[0]) return res.status(404).json({ error: "attachment not found" });
+  const { data, error } = await taskStorage.storage.from(taskStorageBucket).createSignedUrl(rows[0].storage_path, 300);
+  if (error || !data) return res.status(502).json({ error: "could not create download link" });
+  res.json({ url: data.signedUrl, expiresIn: 300 });
 });
 
 apiRouter.patch("/tasks/:id", requireUser, async (req: any, res) => {

@@ -126,6 +126,19 @@ CREATE TABLE IF NOT EXISTS runner_task_documents (
   collected_at TIMESTAMPTZ
 );
 
+CREATE TABLE IF NOT EXISTS runner_task_attachments (
+  id BIGSERIAL PRIMARY KEY,
+  task_id BIGINT NOT NULL REFERENCES runner_tasks(id) ON DELETE CASCADE,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  storage_path TEXT NOT NULL UNIQUE,
+  original_name TEXT NOT NULL,
+  content_type TEXT NOT NULL,
+  size_bytes BIGINT NOT NULL,
+  uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_task_attachments_task ON runner_task_attachments(task_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS runner_push_devices (
   id BIGSERIAL PRIMARY KEY,
   runner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
