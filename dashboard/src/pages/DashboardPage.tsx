@@ -498,6 +498,32 @@ export default function DashboardPage() {
     }
   }
 
+  function closeTaskForm() {
+    setTaskRunner(null);
+    setEditingTask(null);
+    setTaskSubmissionKey(null);
+  }
+
+  function removeSelectedAttachment(fileToRemove: File) {
+    setTaskAttachments((attachments) => attachments.filter((file) => file !== fileToRemove));
+  }
+
+  const selectedDocuments = [
+    ...taskForm.documents,
+    taskForm.customDocument.trim(),
+  ].filter(Boolean);
+  const invalidTaskAttachment = taskAttachments.find(
+    (file) => file.size > 25 * 1024 * 1024 || !allowedAttachmentTypes.has(file.type),
+  );
+  const isTaskReadyToAssign = Boolean(
+    taskForm.clientName.trim()
+      && taskForm.clientAddress.trim()
+      && normaliseIndianMobile(taskForm.clientPhone)
+      && selectedDocuments.length > 0
+      && taskAttachments.length <= 5
+      && !invalidTaskAttachment,
+  );
+
   return (
     <div className="flex min-h-[calc(100dvh-116px)] flex-col bg-panel text-ink lg:h-[calc(100dvh-72px)] lg:min-h-0">
       <main className="grid grid-cols-1 gap-3 overflow-visible p-4 sm:gap-4 lg:h-full lg:min-h-0 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.65fr)_minmax(260px,0.8fr)] lg:overflow-hidden lg:px-7 lg:py-7">
@@ -668,34 +694,34 @@ export default function DashboardPage() {
         <div className="fixed inset-0 z-[1400] flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4">
           <form
             onSubmit={saveTask}
-            className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-[28px] bg-surface p-5 shadow-2xl sm:rounded-[28px] sm:p-6"
+            className="flex max-h-[94vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[28px] bg-surface shadow-2xl sm:rounded-[28px]"
           >
-            <div className="sticky -top-5 z-10 -mx-5 mb-4 flex items-start justify-between gap-3 bg-surface px-5 pb-3 pt-5 sm:-top-6 sm:-mx-6 sm:px-6 sm:pt-6">
+            <div className="flex items-start justify-between gap-3 border-b border-border px-5 pb-4 pt-5 sm:px-6 sm:pt-6">
               <div>
-                <h2 className="font-semibold">
+                <h2 className="text-lg font-semibold">
                   {editingTask
                     ? `Edit task for ${taskRunner.displayName}`
                     : `Assign task to ${taskRunner.displayName}`}
                 </h2>
-                <p className="text-xs text-on-surface-variant mt-1">
-                  {editingTask
-                    ? "This task can be changed until the runner acknowledges it."
-                    : "The runner receives this immediately when connected, and it remains available after reconnecting."}
-                </p>
+                <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-surface-variant px-3 py-1 text-xs text-on-surface-variant">
+                  <span className={`h-2 w-2 rounded-full ${getRunnerStatus(taskRunner) === "live" ? "bg-emerald-600" : getRunnerStatus(taskRunner) === "idle" ? "bg-amber-600" : "bg-slate-500"}`} />
+                  {taskRunner.displayName}
+                  <span aria-hidden="true">·</span>
+                  {getRunnerStatus(taskRunner) === "live" ? "Location live" : getRunnerStatus(taskRunner) === "idle" ? "Location while open" : "Offline"}
+                </div>
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setTaskRunner(null);
-                  setEditingTask(null);
-                  setTaskSubmissionKey(null);
-                }}
+                onClick={closeTaskForm}
                 className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-2xl text-on-surface-variant hover:bg-surface-variant"
                 aria-label="Close task form"
               >
                 ×
               </button>
             </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+              <section className="space-y-3">
+                <div><p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">1. Task details</p><p className="mt-1 text-sm text-on-surface-variant">Who is the task for and when should it be completed?</p></div>
             <label className="block text-sm mb-1">Client name</label>
             <input
               className="mb-3 w-full rounded-xl border border-border bg-transparent px-3 py-2"
@@ -705,6 +731,7 @@ export default function DashboardPage() {
                 setTaskForm({ ...taskForm, clientName: e.target.value })
               }
             />
+                <div className="border-t border-border pt-5"><p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">2. Delivery location</p><p className="mt-1 text-sm text-on-surface-variant">Search for an address or place the pin precisely.</p></div>
             <AddressPicker
               value={
                 taskForm.destinationLat != null &&
@@ -725,6 +752,7 @@ export default function DashboardPage() {
                 })
               }
             />
+            {taskForm.clientAddress && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"><span className="font-semibold">Destination:</span> {taskForm.clientAddress}</div>}
             <label className="block text-sm mb-1">
               Phone number{" "}
               <span className="text-on-surface-variant">(India)</span>
@@ -781,6 +809,9 @@ export default function DashboardPage() {
                 />
               </label>
             </div>
+              </section>
+              <section className="mt-6 border-t border-border pt-5">
+                <div><p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">3. Requirements</p><p className="mt-1 text-sm text-on-surface-variant">Add collection requirements, supporting files, and dispatch notes.</p></div>
             <label className="block text-sm mb-2">Documents to collect</label>
             <div className="grid grid-cols-2 gap-2 mb-3">
               {documentTypes.map((name) => (
@@ -805,6 +836,7 @@ export default function DashboardPage() {
                 </label>
               ))}
             </div>
+            {selectedDocuments.length === 0 && <p className="mb-3 text-xs text-amber-700">Choose at least one document to collect before assigning this task.</p>}
             <input
               className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2"
               placeholder="Other document (optional)"
@@ -813,14 +845,16 @@ export default function DashboardPage() {
                 setTaskForm({ ...taskForm, customDocument: e.target.value })
               }
             />
-            <label className="mb-3 block text-sm">Task attachments <span className="text-on-surface-variant">(PDF, DOC, DOCX; max 25 MB each)</span><input className="mt-1 block w-full text-sm" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple onChange={(e) => setTaskAttachments(Array.from(e.target.files ?? []))} /></label>
+            <label className="mb-3 block rounded-xl border border-dashed border-border bg-surface-variant/40 p-3 text-sm font-medium">Add supporting files <span className="font-normal text-on-surface-variant">(PDF, DOC, DOCX; max 25 MB each)</span><input className="mt-2 block w-full text-sm font-normal" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple onChange={(e) => setTaskAttachments(Array.from(e.target.files ?? []))} /></label>
             {editingTask && (
               <div className="mb-3 rounded-xl border border-border bg-surface-variant/40 p-3">
                 <p className="text-sm font-medium">Attached files</p>
                 {attachmentsLoading ? <p className="mt-1 text-xs text-on-surface-variant">Loading attached files…</p> : existingTaskAttachments.length === 0 ? <p className="mt-1 text-xs text-on-surface-variant">No files were attached to this task.</p> : <ul className="mt-2 space-y-1">{existingTaskAttachments.map((attachment) => <li key={attachment.id} className="flex items-center justify-between gap-2"><button type="button" onClick={() => openTaskAttachment(editingTask.id, attachment.id)} className="min-w-0 text-left text-xs font-medium text-accent hover:underline">{attachment.name} <span className="font-normal text-on-surface-variant">({Math.ceil(attachment.sizeBytes / 1024)} KB)</span></button><button type="button" aria-label={`Delete ${attachment.name}`} title="Delete attachment" disabled={deletingAttachmentId === attachment.id} onClick={() => deleteTaskAttachment(editingTask.id, attachment)} className="shrink-0 rounded p-1 text-red-700 hover:bg-red-50 disabled:opacity-50"><DeleteOutlineIcon fontSize="small" /></button></li>)}</ul>}
               </div>
             )}
-            {taskAttachments.length > 0 && <p className="mb-3 text-xs text-on-surface-variant">{taskAttachments.map((file) => file.name).join(", ")}</p>}
+            {taskAttachments.length > 0 && <ul className="mb-3 space-y-2">{taskAttachments.map((file) => <li key={`${file.name}-${file.lastModified}`} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-3 py-2 text-sm"><span className="min-w-0 truncate">{file.name} <span className="text-xs text-on-surface-variant">({(file.size / (1024 * 1024)).toFixed(1)} MB)</span></span><button type="button" onClick={() => removeSelectedAttachment(file)} className="shrink-0 text-xs font-semibold text-red-700 hover:underline">Remove</button></li>)}</ul>}
+            {taskAttachments.length > 5 && <p className="mb-3 text-xs text-red-700">A task can include up to 5 supporting files.</p>}
+            {invalidTaskAttachment && <p className="mb-3 text-xs text-red-700">{invalidTaskAttachment.name} must be a PDF, DOC, or DOCX file no larger than 25 MB.</p>}
             <label className="block text-sm mb-1">Notes (optional)</label>
             <textarea
               className="w-full mb-3 rounded-xl border border-[#777680] bg-transparent px-3 py-2"
@@ -829,27 +863,33 @@ export default function DashboardPage() {
                 setTaskForm({ ...taskForm, notes: e.target.value })
               }
             />
+              </section>
+            </div>
             {taskError && (
-              <p className="mb-3 text-sm text-red-700">{taskError}</p>
+              <p className="mx-5 mt-3 text-sm text-red-700 sm:mx-6">{taskError}</p>
             )}
-            <div className="flex justify-end gap-3">
+            <div className="border-t border-border bg-surface px-5 py-4 sm:px-6">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-on-surface-variant">
+                <span>{taskRunner.displayName}</span>
+                <span>{taskForm.clientAddress ? "Destination selected" : "Add a destination"}</span>
+                <span>{selectedDocuments.length} document{selectedDocuments.length === 1 ? "" : "s"} to collect</span>
+                <span>{taskAttachments.length} file{taskAttachments.length === 1 ? "" : "s"}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
               <button
                 type="button"
-                onClick={() => {
-                  setTaskRunner(null);
-                  setEditingTask(null);
-                  setTaskSubmissionKey(null);
-                }}
+                onClick={closeTaskForm}
                 className="px-3 py-2 text-sm text-on-surface-variant"
               >
                 Cancel
               </button>
               <button
-                disabled={formBusy}
+                disabled={formBusy || !isTaskReadyToAssign}
                 className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white disabled:opacity-50"
               >
-                {formBusy ? "Saving…" : editingTask ? "Save task" : "Send task"}
+                {formBusy ? "Saving…" : editingTask ? "Save task" : `Assign to ${taskRunner.displayName}`}
               </button>
+              </div>
             </div>
           </form>
         </div>
