@@ -32,7 +32,7 @@ async function main() {
       // to clear a runner's retained location data. Include these methods in
       // browser preflight responses as well as the existing read/create APIs.
       methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: ["Authorization", "Content-Type"],
+      allowedHeaders: ["Authorization", "Content-Type", "Idempotency-Key"],
       maxAge: 86_400,
     })
   );
