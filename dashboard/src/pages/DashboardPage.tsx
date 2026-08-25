@@ -505,8 +505,13 @@ export default function DashboardPage() {
           className="order-1 min-w-0 overflow-hidden  border border-border bg-surface shadow-[var(--shadow-card)]"
           color="default"
         >
-          <div className="flex items-center justify-between border-b border-border px-5 py-4">
-              <div className="text-sm font-semibold">Available Runners</div>
+          <div className="border-b border-border px-5 py-4">
+            <div className="text-sm font-semibold">Available Runners</div>
+            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-on-surface-variant">
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-600" />Location always allowed</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-600" />Location when app is open</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-slate-500" />Offline</span>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-2 border-b border-border bg-surface-variant p-3">
             <Metric
