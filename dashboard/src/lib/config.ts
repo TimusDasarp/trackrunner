@@ -20,6 +20,9 @@ export const googleMapsMapId = import.meta.env.VITE_GOOGLE_MAP_ID?.trim() ?? "";
 
 export const hasGoogleMapsConfig = Boolean(googleMapsApiKey && googleMapsMapId);
 
+/** Set VITE_TASKS_WORKSPACE_ENABLED=false to hide the workspace during a staged rollout. */
+export const tasksWorkspaceEnabled = import.meta.env.VITE_TASKS_WORKSPACE_ENABLED !== "false";
+
 export function apiUrl(path: string): string {
   return `${apiBaseUrl}${path}`;
 }

@@ -61,6 +61,17 @@ const UpdateTaskSchema = z.object({
 
 const DispatcherTaskUpdateSchema = CreateTaskSchema;
 
+// Dispatch changes are deliberately separate from the full task edit form.
+// This keeps reassignment and rescheduling small, auditable operations and
+// avoids accidentally replacing customer details during a live dispatch.
+const DispatcherDispatchUpdateSchema = z.object({
+  runnerId: z.union([z.string(), z.number()]).transform(String).optional(),
+  dueAt: z.string().datetime().nullable().optional(),
+  reason: z.string().trim().min(2).max(240).optional(),
+}).refine((value) => value.runnerId !== undefined || value.dueAt !== undefined, {
+  message: "runnerId or dueAt is required",
+});
+
 const PushDeviceSchema = z.object({
   token: z.string().trim().min(20).max(4096),
   platform: z.enum(["android", "ios"]),
@@ -573,6 +584,54 @@ apiRouter.delete("/tasks/:id/attachments/:attachmentId", requireDispatcher, asyn
   await pool.query("DELETE FROM runner_task_attachments WHERE id = $1 AND task_id = $2 AND organization_id = $3", [req.params.attachmentId, req.params.id, req.user.organizationId]);
   await recordTaskEvent(req.user.organizationId, String(req.params.id), req.user.sub, "attachment_removed", { name: rows[0].original_name });
   res.json({ ok: true, id: String(req.params.attachmentId) });
+});
+
+apiRouter.post("/tasks/:id/dispatch", requireDispatcher, async (req: any, res) => {
+  const parsed = DispatcherDispatchUpdateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid dispatch update" });
+
+  const task = await getTask(String(req.params.id), String(req.user.organizationId));
+  if (!task || task.runnerId == null) return res.status(404).json({ error: "task not found" });
+  if (task.status !== "sent") {
+    return res.status(409).json({ error: "only unacknowledged tasks can be reassigned or rescheduled" });
+  }
+
+  const nextRunnerId = parsed.data.runnerId ?? task.runnerId;
+  if (parsed.data.runnerId) {
+    const { rows: assignment } = await pool.query(
+      `SELECT 1 FROM runner_assignments
+       WHERE runner_id = $1 AND dispatcher_id = $2 AND organization_id = $3 AND active = true`,
+      [nextRunnerId, req.user.sub, req.user.organizationId],
+    );
+    if (!assignment[0]) return res.status(400).json({ error: "runner is not available to this dispatcher" });
+  }
+
+  const dueAtChanged = parsed.data.dueAt !== undefined && parsed.data.dueAt !== task.dueAt;
+  const runnerChanged = nextRunnerId !== task.runnerId;
+  if (!runnerChanged && !dueAtChanged) return res.json({ task, unchanged: true });
+
+  await pool.query(
+    `UPDATE runner_tasks SET runner_id = $1, due_at = $2
+     WHERE id = $3 AND organization_id = $4 AND dispatcher_id = $5 AND status = 'sent'`,
+    [nextRunnerId, parsed.data.dueAt === undefined ? task.dueAt : parsed.data.dueAt, task.id, req.user.organizationId, req.user.sub],
+  );
+  const updated = await getTask(task.id, String(req.user.organizationId));
+  const metadata = {
+    reason: parsed.data.reason ?? null,
+    previousRunnerId: task.runnerId,
+    nextRunnerId,
+    previousDueAt: task.dueAt ?? null,
+    nextDueAt: updated?.dueAt ?? null,
+  };
+  await recordTaskEvent(req.user.organizationId, task.id, req.user.sub, runnerChanged ? "reassigned" : "rescheduled", metadata);
+
+  // Notify both devices. The previous runner receives the same updated task,
+  // allowing their client to remove it during its normal task reconciliation.
+  req.app.get("io").to(`runner:${task.runnerId}`).emit("task:updated", updated);
+  req.app.get("io").to(`runner:${nextRunnerId}`).emit("task:updated", updated);
+  req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${task.runnerId}`).emit("task:updated", updated);
+  req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${nextRunnerId}`).emit("task:updated", updated);
+  res.json({ task: updated });
 });
 
 apiRouter.patch("/tasks/:id", requireUser, async (req: any, res) => {

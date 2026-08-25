@@ -23,8 +23,17 @@ export function useTasks() {
   useEffect(() => {
     refresh().catch(() => setLoading(false));
     const upsert = (task: RunnerTask) => setTasks((current) => {
+      const existingTask = current.find((item) => item.id === task.id);
       const next = current.filter((item) => item.id !== task.id);
-      return task.status === 'completed' || task.status === 'unable_to_complete' ? next : [task, ...next];
+
+      // A reassignment is sent to both runners. When this device already held
+      // the task but the updated payload names another runner, remove it from
+      // this local queue instead of briefly showing someone else’s work.
+      if (existingTask && existingTask.runnerId !== task.runnerId) return next;
+
+      return task.status === 'completed' || task.status === 'unable_to_complete'
+        ? next
+        : [task, ...next];
     });
     socketClient.on('task:created', upsert);
     socketClient.on('task:updated', upsert);
