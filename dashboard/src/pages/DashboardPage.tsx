@@ -502,7 +502,7 @@ export default function DashboardPage() {
     <div className="flex min-h-[calc(100dvh-116px)] flex-col bg-panel text-ink lg:h-[calc(100dvh-72px)] lg:min-h-0">
       <main className="grid grid-cols-1 gap-3 overflow-visible p-4 sm:gap-4 lg:h-full lg:min-h-0 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.65fr)_minmax(260px,0.8fr)] lg:overflow-hidden lg:px-7 lg:py-7">
         <Card
-          className="order-1 min-w-0 overflow-hidden rounded-[24px] border border-border bg-surface shadow-[var(--shadow-card)]"
+          className="order-1 min-w-0 overflow-hidden  border border-border bg-surface shadow-[var(--shadow-card)]"
           color="default"
         >
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
@@ -539,7 +539,7 @@ export default function DashboardPage() {
 
         <div className="order-2 flex min-w-0 flex-col overflow-hidden lg:min-h-0 lg:pr-1">
           <Card
-            className="flex min-w-0 flex-col overflow-hidden rounded-[24px] border border-border bg-surface shadow-[var(--shadow-card)] lg:min-h-0 lg:flex-1"
+            className="flex min-w-0 flex-col overflow-hidden  border border-border bg-surface shadow-[var(--shadow-card)] lg:min-h-0 lg:flex-1"
             color="default"
           >
             <div className="border-b border-border">
@@ -563,7 +563,7 @@ export default function DashboardPage() {
         </div>
 
         <Card
-          className="order-3 min-w-0 overflow-hidden rounded-[24px] border border-border bg-surface shadow-[var(--shadow-card)] lg:flex lg:min-h-0 lg:flex-col"
+          className="order-3 min-w-0 overflow-hidden  border border-border bg-surface shadow-[var(--shadow-card)] lg:flex lg:min-h-0 lg:flex-col"
           color="default"
         >
           <div className="flex items-center justify-between px-5 py-4">

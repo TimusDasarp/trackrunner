@@ -23,8 +23,8 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<RequireAuth><AppShell /></RequireAuth>}>
         <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/runners" element={<ManageRunnersPage />} />
         <Route path="/tasks" element={tasksWorkspaceEnabled ? <Suspense fallback={<main className="p-6">Loading Tasks…</main>}><TasksPage /></Suspense> : <Navigate to="/dashboard" replace />} />
+        <Route path="/runners" element={<ManageRunnersPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />
