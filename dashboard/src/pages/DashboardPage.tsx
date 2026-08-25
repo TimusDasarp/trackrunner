@@ -65,6 +65,40 @@ const allowedAttachmentTypes = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 
+function waitForOnline(): Promise<void> {
+  if (navigator.onLine) return Promise.resolve();
+  return new Promise((resolve) => window.addEventListener("online", () => resolve(), { once: true }));
+}
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+async function fetchWithNetworkRetry(
+  url: string,
+  options: RequestInit,
+  onRetry: (message: string) => void,
+): Promise<Response> {
+  const attempts = 3;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (!navigator.onLine) {
+      onRetry("Connection lost. Waiting for internet to retry task assignment…");
+      await waitForOnline();
+    }
+    try {
+      return await fetch(url, options);
+    } catch (error) {
+      if (attempt === attempts - 1) {
+        throw new Error("Could not reach the server. Your task was not created; please try again when connected.");
+      }
+      onRetry(`Connection interrupted. Retrying task assignment (${attempt + 1}/${attempts - 1})…`);
+      if (!navigator.onLine) await waitForOnline();
+      else await wait(1_000 * (attempt + 1));
+    }
+  }
+  throw new Error("Could not reach the server.");
+}
+
 async function uploadTaskAttachment(taskId: string, file: File) {
   const formData = new FormData();
   formData.append("file", file);
@@ -85,19 +119,20 @@ async function createTaskWithAttachments(
   task: Record<string, unknown>,
   attachments: File[],
   idempotencyKey: string,
+  onNetworkRetry: (message: string) => void,
 ): Promise<{ task: DashboardTask }> {
   const formData = new FormData();
   formData.append("task", JSON.stringify(task));
   for (const attachment of attachments) formData.append("attachments", attachment);
   const token = getToken();
-  const response = await fetch(apiUrl(`/api/runners/${runnerId}/tasks/with-attachments`), {
+  const response = await fetchWithNetworkRetry(apiUrl(`/api/runners/${runnerId}/tasks/with-attachments`), {
     method: "POST",
     headers: {
       "Idempotency-Key": idempotencyKey,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: formData,
-  });
+  }, onNetworkRetry);
   const body = await response.json().catch(() => null);
   if (!response.ok) throw new Error(body?.error ?? `Could not create task (${response.status})`);
   return body;
@@ -376,7 +411,7 @@ export default function DashboardPage() {
           method: "PATCH",
           body: JSON.stringify(payload),
         })
-        : await createTaskWithAttachments(taskRunner.runnerId, payload, taskAttachments, taskSubmissionKey ?? crypto.randomUUID());
+        : await createTaskWithAttachments(taskRunner.runnerId, payload, taskAttachments, taskSubmissionKey ?? crypto.randomUUID(), setTaskError);
       if (editingTask) {
         for (const file of taskAttachments) await uploadTaskAttachment(result.task.id, file);
       }
