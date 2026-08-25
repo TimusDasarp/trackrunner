@@ -4,7 +4,7 @@
 
 import { API_BASE_URL, requireApiOrigin } from '../constants';
 import { SessionStore } from './sessionStore';
-import type { AuthResponse, LoginCredentials, RunnerTask, TaskStatus } from '../types';
+import type { AuthResponse, LoginCredentials, RunnerTask, TaskAttachment, TaskStatus } from '../types';
 
 type ApiErrorBody = { error?: string; message?: string };
 
@@ -68,6 +68,16 @@ class ApiClient {
       method: 'PATCH', body: JSON.stringify({ status, documents }),
     });
     return response.task;
+  }
+
+  async getTaskAttachments(taskId: string): Promise<TaskAttachment[]> {
+    const response = await request<{ attachments: TaskAttachment[] }>(`/tasks/${taskId}/attachments`);
+    return response.attachments ?? [];
+  }
+
+  async getTaskAttachmentDownloadUrl(taskId: string, attachmentId: string): Promise<string> {
+    const response = await request<{ url: string }>(`/tasks/${taskId}/attachments/${attachmentId}/download`);
+    return response.url;
   }
 }
 

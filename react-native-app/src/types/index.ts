@@ -47,6 +47,13 @@ export interface TrackingState {
 
 export type TaskStatus = 'sent' | 'acknowledged' | 'in_progress' | 'completed' | 'unable_to_complete';
 export interface RunnerTaskDocument { id: string; name: string; collected: boolean; collectedAt?: string | null; }
+export interface TaskAttachment {
+  id: string;
+  name: string;
+  contentType: string;
+  sizeBytes: number;
+  createdAt: string;
+}
 export interface RunnerTask {
   id: string; runnerId: string; clientName: string; clientAddress: string; clientPhone: string;
   notes?: string | null; destinationLat?: number | null; destinationLon?: number | null; priority?: 'normal' | 'high' | 'urgent' | 'low'; status: TaskStatus; createdAt: string; documents: RunnerTaskDocument[];

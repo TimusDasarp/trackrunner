@@ -1,16 +1,35 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Linking, Platform, ScrollView, Text, View } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { Button, Card, Chip, IconButton } from 'react-native-paper';
+import { ActivityIndicator, Button, Card, Chip, IconButton } from 'react-native-paper';
 import { useTasks } from '../hooks/useTasks';
-import type { RunnerTask } from '../types';
+import { api } from '../services/api';
+import type { RunnerTask, TaskAttachment } from '../types';
 
 export default function TaskDetailScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const [task, setTask] = useState<RunnerTask>(route.params.task);
+  const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
+  const [attachmentsLoading, setAttachmentsLoading] = useState(true);
+  const [attachmentsError, setAttachmentsError] = useState<string | null>(null);
+  const [openingAttachmentId, setOpeningAttachmentId] = useState<string | null>(null);
   const { update } = useTasks();
   const priority = priorityMeta(task.priority);
+
+  const loadAttachments = useCallback(async () => {
+    setAttachmentsLoading(true);
+    setAttachmentsError(null);
+    try {
+      setAttachments(await api.getTaskAttachments(task.id));
+    } catch (error: any) {
+      setAttachmentsError(error?.message || 'Please check your connection and try again.');
+    } finally {
+      setAttachmentsLoading(false);
+    }
+  }, [task.id]);
+
+  useEffect(() => { void loadAttachments(); }, [loadAttachments]);
 
   async function save(status = task.status, documents = task.documents) {
     try {
@@ -31,6 +50,18 @@ export default function TaskDetailScreen() {
       await Linking.openURL(Platform.OS === 'android' ? `google.navigation:q=${encoded}&mode=d` : fallback);
     } catch {
       await Linking.openURL(fallback).catch(() => Alert.alert('Maps unavailable', 'Install or enable a maps app to navigate to this task.'));
+    }
+  }
+
+  async function openAttachment(attachment: TaskAttachment) {
+    setOpeningAttachmentId(attachment.id);
+    try {
+      const url = await api.getTaskAttachmentDownloadUrl(task.id, attachment.id);
+      await Linking.openURL(url);
+    } catch (error: any) {
+      Alert.alert('Could not open file', error?.message || 'Please try again.');
+    } finally {
+      setOpeningAttachmentId(null);
     }
   }
 
@@ -62,6 +93,13 @@ export default function TaskDetailScreen() {
 
       {!!task.notes && <Card mode="contained"><Card.Content style={{ gap: 8 }}><Text className="text-xs font-semibold text-slate-500">DELIVERY NOTES</Text><Text className="text-base text-slate-700">{task.notes}</Text></Card.Content></Card>}
 
+      {(attachmentsLoading || attachmentsError || attachments.length > 0) && <Card mode="contained">
+        <Card.Content style={{ gap: 12 }}>
+          <View className="flex-row items-center justify-between"><Text className="text-xl font-bold text-slate-900">Attached files</Text>{attachments.length > 0 && <Chip compact icon="paperclip">{attachments.length}</Chip>}</View>
+          {attachmentsLoading ? <View className="flex-row items-center gap-2 py-1"><ActivityIndicator size="small" /><Text className="text-sm text-slate-500">Loading files…</Text></View> : attachmentsError ? <View style={{ gap: 8 }}><Text className="text-sm text-red-700">Could not load attached files.</Text><Button mode="outlined" compact icon="refresh" onPress={loadAttachments}>Try again</Button></View> : attachments.map((attachment) => <View key={attachment.id} className="rounded-xl border border-slate-200 bg-white p-2"><Button mode="text" icon="file-download-outline" contentStyle={{ justifyContent: 'flex-start', minHeight: 42 }} onPress={() => openAttachment(attachment)} loading={openingAttachmentId === attachment.id} disabled={openingAttachmentId != null}>{attachment.name}<Text className="text-slate-500"> · {formatFileSize(attachment.sizeBytes)}</Text></Button></View>)}
+        </Card.Content>
+      </Card>}
+
       <Card mode="contained">
         <Card.Content style={{ gap: 14 }}>
           <View className="flex-row items-center justify-between"><Text className="text-xl font-bold text-slate-900">Documents</Text><Text className="text-sm text-slate-500">{task.documents.filter((document) => document.collected).length}/{task.documents.length} collected</Text></View>
@@ -75,6 +113,11 @@ export default function TaskDetailScreen() {
       </View>}
     </ScrollView>
   );
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.ceil(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function priorityMeta(priority?: RunnerTask['priority']) {
