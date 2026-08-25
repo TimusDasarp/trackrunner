@@ -26,6 +26,13 @@ type TaskForm = {
   destinationLon?: number;
 };
 type DashboardTask = BoardTask;
+type TaskAttachment = {
+  id: string;
+  name: string;
+  sizeBytes: number;
+  contentType: string;
+  createdAt: string;
+};
 type TaskNotice = {
   id: string;
   clientName: string;
@@ -154,6 +161,8 @@ export default function DashboardPage() {
   const [documentTypes, setDocumentTypes] = useState<string[]>([]);
   const [taskError, setTaskError] = useState<string | null>(null);
   const [taskAttachments, setTaskAttachments] = useState<File[]>([]);
+  const [existingTaskAttachments, setExistingTaskAttachments] = useState<TaskAttachment[]>([]);
+  const [attachmentsLoading, setAttachmentsLoading] = useState(false);
   const [taskSubmissionKey, setTaskSubmissionKey] = useState<string | null>(null);
   const [taskTab, setTaskTab] = useState<"active" | "completed" | "incomplete">("active");
   const [boardTasks, setBoardTasks] = useState<DashboardTask[]>([]);
@@ -312,6 +321,8 @@ export default function DashboardPage() {
     setEditingTask(null);
     setTaskForm(emptyTaskForm);
     setTaskError(null);
+    setTaskAttachments([]);
+    setExistingTaskAttachments([]);
     setTaskSubmissionKey(crypto.randomUUID());
     try {
       const data = await api<{ documentTypes: Array<{ name: string }> }>(
@@ -329,6 +340,9 @@ export default function DashboardPage() {
     setTaskRunner(runner);
     setEditingTask(task);
     setTaskError(null);
+    setTaskAttachments([]);
+    setExistingTaskAttachments([]);
+    setAttachmentsLoading(true);
     setTaskSubmissionKey(null);
     setTaskForm({
       clientName: task.clientName,
@@ -352,6 +366,23 @@ export default function DashboardPage() {
       setDocumentTypes(data.documentTypes.map((item) => item.name));
     } catch {
       setDocumentTypes([]);
+    }
+    try {
+      const data = await api<{ attachments: TaskAttachment[] }>(`/api/tasks/${task.id}/attachments`);
+      setExistingTaskAttachments(data.attachments ?? []);
+    } catch (error: any) {
+      setTaskError(error.message ?? "Could not load existing attachments");
+    } finally {
+      setAttachmentsLoading(false);
+    }
+  }
+
+  async function openTaskAttachment(taskId: string, attachmentId: string) {
+    try {
+      const data = await api<{ url: string }>(`/api/tasks/${taskId}/attachments/${attachmentId}/download`);
+      window.open(data.url, "_blank", "noopener,noreferrer");
+    } catch (error: any) {
+      setTaskError(error.message ?? "Could not open attachment");
     }
   }
 
@@ -763,6 +794,12 @@ export default function DashboardPage() {
               }
             />
             <label className="mb-3 block text-sm">Task attachments <span className="text-on-surface-variant">(PDF, DOC, DOCX; max 25 MB each)</span><input className="mt-1 block w-full text-sm" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple onChange={(e) => setTaskAttachments(Array.from(e.target.files ?? []))} /></label>
+            {editingTask && (
+              <div className="mb-3 rounded-xl border border-border bg-surface-variant/40 p-3">
+                <p className="text-sm font-medium">Attached files</p>
+                {attachmentsLoading ? <p className="mt-1 text-xs text-on-surface-variant">Loading attached files…</p> : existingTaskAttachments.length === 0 ? <p className="mt-1 text-xs text-on-surface-variant">No files were attached to this task.</p> : <ul className="mt-2 space-y-1">{existingTaskAttachments.map((attachment) => <li key={attachment.id}><button type="button" onClick={() => openTaskAttachment(editingTask.id, attachment.id)} className="text-left text-xs font-medium text-accent hover:underline">{attachment.name} <span className="font-normal text-on-surface-variant">({Math.ceil(attachment.sizeBytes / 1024)} KB)</span></button></li>)}</ul>}
+              </div>
+            )}
             {taskAttachments.length > 0 && <p className="mb-3 text-xs text-on-surface-variant">{taskAttachments.map((file) => file.name).join(", ")}</p>}
             <label className="block text-sm mb-1">Notes (optional)</label>
             <textarea
