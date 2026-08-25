@@ -11,6 +11,7 @@ import { getSocket } from "../lib/socket";
 import { getRunnerStatus, type RunnerState } from "../lib/types";
 import { Card } from "@material-tailwind/react";
 import { Alert, Snackbar } from "@mui/material";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 
 type RunnerForm = { email: string; password: string; displayName: string };
 type TaskForm = {
@@ -163,6 +164,7 @@ export default function DashboardPage() {
   const [taskAttachments, setTaskAttachments] = useState<File[]>([]);
   const [existingTaskAttachments, setExistingTaskAttachments] = useState<TaskAttachment[]>([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false);
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
   const [taskSubmissionKey, setTaskSubmissionKey] = useState<string | null>(null);
   const [taskTab, setTaskTab] = useState<"active" | "completed" | "incomplete">("active");
   const [boardTasks, setBoardTasks] = useState<DashboardTask[]>([]);
@@ -383,6 +385,19 @@ export default function DashboardPage() {
       window.open(data.url, "_blank", "noopener,noreferrer");
     } catch (error: any) {
       setTaskError(error.message ?? "Could not open attachment");
+    }
+  }
+
+  async function deleteTaskAttachment(taskId: string, attachment: TaskAttachment) {
+    if (!window.confirm(`Delete ${attachment.name}? This cannot be undone.`)) return;
+    setDeletingAttachmentId(attachment.id);
+    try {
+      await api(`/api/tasks/${taskId}/attachments/${attachment.id}`, { method: "DELETE" });
+      setExistingTaskAttachments((attachments) => attachments.filter((item) => item.id !== attachment.id));
+    } catch (error: any) {
+      setTaskError(error.message ?? "Could not delete attachment");
+    } finally {
+      setDeletingAttachmentId(null);
     }
   }
 
@@ -797,7 +812,7 @@ export default function DashboardPage() {
             {editingTask && (
               <div className="mb-3 rounded-xl border border-border bg-surface-variant/40 p-3">
                 <p className="text-sm font-medium">Attached files</p>
-                {attachmentsLoading ? <p className="mt-1 text-xs text-on-surface-variant">Loading attached files…</p> : existingTaskAttachments.length === 0 ? <p className="mt-1 text-xs text-on-surface-variant">No files were attached to this task.</p> : <ul className="mt-2 space-y-1">{existingTaskAttachments.map((attachment) => <li key={attachment.id}><button type="button" onClick={() => openTaskAttachment(editingTask.id, attachment.id)} className="text-left text-xs font-medium text-accent hover:underline">{attachment.name} <span className="font-normal text-on-surface-variant">({Math.ceil(attachment.sizeBytes / 1024)} KB)</span></button></li>)}</ul>}
+                {attachmentsLoading ? <p className="mt-1 text-xs text-on-surface-variant">Loading attached files…</p> : existingTaskAttachments.length === 0 ? <p className="mt-1 text-xs text-on-surface-variant">No files were attached to this task.</p> : <ul className="mt-2 space-y-1">{existingTaskAttachments.map((attachment) => <li key={attachment.id} className="flex items-center justify-between gap-2"><button type="button" onClick={() => openTaskAttachment(editingTask.id, attachment.id)} className="min-w-0 text-left text-xs font-medium text-accent hover:underline">{attachment.name} <span className="font-normal text-on-surface-variant">({Math.ceil(attachment.sizeBytes / 1024)} KB)</span></button><button type="button" aria-label={`Delete ${attachment.name}`} title="Delete attachment" disabled={deletingAttachmentId === attachment.id} onClick={() => deleteTaskAttachment(editingTask.id, attachment)} className="shrink-0 rounded p-1 text-red-700 hover:bg-red-50 disabled:opacity-50"><DeleteOutlineIcon fontSize="small" /></button></li>)}</ul>}
               </div>
             )}
             {taskAttachments.length > 0 && <p className="mb-3 text-xs text-on-surface-variant">{taskAttachments.map((file) => file.name).join(", ")}</p>}

@@ -54,8 +54,10 @@ const CreateTaskSchema = z.object({
 
 const UpdateTaskSchema = z.object({
   status: z.enum(["sent", "acknowledged", "in_progress", "completed", "unable_to_complete"]),
+  incompleteReason: z.enum(["client_unavailable", "client_requested_reschedule", "address_issue", "access_denied", "runner_issue", "vehicle_or_device_issue", "safety_issue", "other"]).optional(),
+  incompleteNote: z.string().trim().max(1000).optional(),
   documents: z.array(z.object({ id: z.union([z.string(), z.number()]), collected: z.boolean() })).max(30).optional(),
-});
+}).superRefine((value, ctx) => { if (value.status === "unable_to_complete" && !value.incompleteReason) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "incomplete reason is required" }); });
 
 const DispatcherTaskUpdateSchema = CreateTaskSchema;
 
@@ -131,7 +133,7 @@ function taskDto(row: any) {
     id: String(row.id), runnerId: String(row.runner_id), clientName: row.client_name,
     clientAddress: row.client_address, clientPhone: row.client_phone, notes: row.notes,
     status: row.status, destinationLat: row.destination_lat, destinationLon: row.destination_lon, createdAt: row.created_at, acknowledgedAt: row.acknowledged_at,
-    startedAt: row.started_at, completedAt: row.completed_at, priority: row.priority, dueAt: row.due_at,
+    startedAt: row.started_at, completedAt: row.completed_at, priority: row.priority, dueAt: row.due_at, incompleteReason: row.incomplete_reason, incompleteNote: row.incomplete_note,
   };
 }
 
@@ -518,7 +520,9 @@ apiRouter.get("/tasks", requireUser, async (req: any, res) => {
   res.json({ tasks });
 });
 
-apiRouter.get("/tasks/:id/attachments", requireDispatcher, async (req: any, res) => {
+apiRouter.get("/tasks/:id/attachments", requireUser, async (req: any, res) => {
+  const { rows: access } = await pool.query("SELECT 1 FROM runner_tasks WHERE id=$1 AND organization_id=$2 AND (runner_id=$3 OR (dispatcher_id=$3 AND $4='dispatcher'))", [req.params.id, req.user.organizationId, req.user.sub, req.user.role]);
+  if (!access[0]) return res.status(404).json({ error: "task not found" });
   const { rows } = await pool.query("SELECT id, original_name, content_type, size_bytes, created_at FROM runner_task_attachments WHERE task_id = $1 AND organization_id = $2 ORDER BY created_at DESC", [req.params.id, req.user.organizationId]);
   res.json({ attachments: rows.map((row) => ({ id: String(row.id), name: row.original_name, contentType: row.content_type, sizeBytes: Number(row.size_bytes), createdAt: row.created_at })) });
 });
@@ -541,13 +545,34 @@ apiRouter.post("/tasks/:id/attachments", requireDispatcher, taskUpload.single("f
   res.status(201).json({ attachment: { id: String(rows[0].id), name: rows[0].original_name, contentType: rows[0].content_type, sizeBytes: Number(rows[0].size_bytes), createdAt: rows[0].created_at } });
 });
 
-apiRouter.get("/tasks/:id/attachments/:attachmentId/download", requireDispatcher, async (req: any, res) => {
+apiRouter.get("/tasks/:id/attachments/:attachmentId/download", requireUser, async (req: any, res) => {
   if (!taskStorage) return res.status(503).json({ error: "document storage is not configured" });
+  const { rows: access } = await pool.query("SELECT 1 FROM runner_tasks WHERE id=$1 AND organization_id=$2 AND (runner_id=$3 OR (dispatcher_id=$3 AND $4='dispatcher'))", [req.params.id, req.user.organizationId, req.user.sub, req.user.role]);
+  if (!access[0]) return res.status(404).json({ error: "task not found" });
   const { rows } = await pool.query("SELECT storage_path FROM runner_task_attachments WHERE id = $1 AND task_id = $2 AND organization_id = $3", [req.params.attachmentId, req.params.id, req.user.organizationId]);
   if (!rows[0]) return res.status(404).json({ error: "attachment not found" });
   const { data, error } = await taskStorage.storage.from(taskStorageBucket).createSignedUrl(rows[0].storage_path, 300);
   if (error || !data) return res.status(502).json({ error: "could not create download link" });
   res.json({ url: data.signedUrl, expiresIn: 300 });
+});
+
+apiRouter.delete("/tasks/:id/attachments/:attachmentId", requireDispatcher, async (req: any, res) => {
+  if (!taskStorage) return res.status(503).json({ error: "document storage is not configured" });
+  const { rows } = await pool.query(`SELECT attachment.storage_path, attachment.original_name
+    FROM runner_task_attachments attachment
+    JOIN runner_tasks task ON task.id = attachment.task_id
+    WHERE attachment.id = $1 AND attachment.task_id = $2 AND attachment.organization_id = $3
+      AND task.dispatcher_id = $4 AND task.status = 'sent'`, [req.params.attachmentId, req.params.id, req.user.organizationId, req.user.sub]);
+  if (!rows[0]) return res.status(404).json({ error: "attachment not found or task can no longer be edited" });
+
+  const { error } = await taskStorage.storage.from(taskStorageBucket).remove([rows[0].storage_path]);
+  if (error) {
+    console.error("Failed to delete task attachment", { taskId: req.params.id, attachmentId: req.params.attachmentId, error });
+    return res.status(502).json({ error: "could not delete attachment from storage" });
+  }
+  await pool.query("DELETE FROM runner_task_attachments WHERE id = $1 AND task_id = $2 AND organization_id = $3", [req.params.attachmentId, req.params.id, req.user.organizationId]);
+  await recordTaskEvent(req.user.organizationId, String(req.params.id), req.user.sub, "attachment_removed", { name: rows[0].original_name });
+  res.json({ ok: true, id: String(req.params.attachmentId) });
 });
 
 apiRouter.patch("/tasks/:id", requireUser, async (req: any, res) => {
