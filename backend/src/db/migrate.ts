@@ -139,6 +139,15 @@ CREATE TABLE IF NOT EXISTS runner_task_attachments (
 );
 CREATE INDEX IF NOT EXISTS idx_task_attachments_task ON runner_task_attachments(task_id, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS task_assignment_requests (
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  dispatcher_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  idempotency_key TEXT NOT NULL,
+  task_id BIGINT REFERENCES runner_tasks(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (organization_id, dispatcher_id, idempotency_key)
+);
+
 CREATE TABLE IF NOT EXISTS runner_push_devices (
   id BIGSERIAL PRIMARY KEY,
   runner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

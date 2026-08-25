@@ -16,6 +16,7 @@ import {
 export const apiRouter = Router();
 const taskUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 5 } });
 const allowedAttachmentTypes = new Set(["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]);
+const attachmentUpload = taskUpload.array("attachments", 5);
 
 const LoginSchema = z.object({
   email: z.string().email(),
@@ -136,6 +137,22 @@ function taskDto(row: any) {
 
 async function recordTaskEvent(organizationId: string, taskId: string, actorId: string, eventType: string, metadata: Record<string, unknown> = {}) {
   await pool.query("INSERT INTO task_events (organization_id, task_id, actor_id, event_type, metadata) VALUES ($1,$2,$3,$4,$5)", [organizationId, taskId, actorId, eventType, JSON.stringify(metadata)]);
+}
+
+async function removeStoredFiles(paths: string[]) {
+  if (paths.length === 0 || !taskStorage) return;
+  const { error } = await taskStorage.storage.from(taskStorageBucket).remove(paths);
+  if (error) console.error("Failed to clean up task attachment files", { bucket: taskStorageBucket, error });
+}
+
+function publishCreatedTask(req: any, task: any, runnerId: string) {
+  req.app.get("io").to(`runner:${runnerId}`).emit("task:created", task);
+  req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${runnerId}`).emit("task:created", task);
+  void pool.query("SELECT token FROM runner_push_devices WHERE runner_id = $1 AND active = true AND permission_granted = true", [runnerId])
+    .then(({ rows: devices }) => sendTaskAssignmentPush(devices.map((device) => device.token), task).then(async (invalidTokens) => {
+      if (invalidTokens.length > 0) await pool.query("UPDATE runner_push_devices SET active = false, updated_at = now() WHERE token = ANY($1)", [invalidTokens]);
+    }))
+    .catch((pushError) => console.error("Failed to send task-assignment push", pushError));
 }
 
 apiRouter.put("/devices/push-token", requireUser, async (req: any, res) => {
@@ -353,6 +370,107 @@ apiRouter.get("/runners/:id/tasks", requireDispatcher, async (req: any, res) => 
   res.json({ tasks });
 });
 
+// The dashboard uses this endpoint for assignment so files and task creation
+// share one all-or-nothing workflow. A runner never sees a task until every
+// attachment is safely stored and the database transaction has committed.
+apiRouter.post("/runners/:id/tasks/with-attachments", requireDispatcher, (req: any, res, next) => {
+  attachmentUpload(req, res, (uploadError) => {
+    if (uploadError instanceof multer.MulterError) {
+      return res.status(400).json({ error: uploadError.code === "LIMIT_FILE_SIZE" ? "each attachment must be 25 MB or smaller" : "too many attachments" });
+    }
+    if (uploadError) return next(uploadError);
+    next();
+  });
+}, async (req: any, res) => {
+  let body: unknown;
+  try { body = JSON.parse(req.body.task); }
+  catch { return res.status(400).json({ error: "invalid task details" }); }
+  const parsed = CreateTaskSchema.safeParse(body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid task details" });
+
+  const runnerId = String(req.params.id);
+  const { rows: assignment } = await pool.query(`SELECT 1 FROM runner_assignments WHERE runner_id = $1 AND dispatcher_id = $2 AND organization_id = $3 AND active = true`, [runnerId, req.user.sub, req.user.organizationId]);
+  if (!assignment[0]) return res.status(404).json({ error: "runner not found" });
+
+  const files = (req.files ?? []) as Express.Multer.File[];
+  if (files.some((file) => !allowedAttachmentTypes.has(file.mimetype))) {
+    return res.status(400).json({ error: "only PDF, DOC, and DOCX files are allowed" });
+  }
+  if (files.length > 0 && !taskStorage) return res.status(503).json({ error: "document storage is not configured" });
+
+  const idempotencyKey = req.get("Idempotency-Key");
+  if (!idempotencyKey || idempotencyKey.length > 120) {
+    return res.status(400).json({ error: "a valid Idempotency-Key header is required" });
+  }
+  // A crash before cleanup should not block a fresh submission forever.
+  await pool.query("DELETE FROM task_assignment_requests WHERE organization_id = $1 AND dispatcher_id = $2 AND task_id IS NULL AND created_at < now() - interval '10 minutes'", [req.user.organizationId, req.user.sub]);
+  const { rows: requestRows } = await pool.query("INSERT INTO task_assignment_requests (organization_id, dispatcher_id, idempotency_key) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING task_id", [req.user.organizationId, req.user.sub, idempotencyKey]);
+  if (!requestRows[0]) {
+    const { rows: previous } = await pool.query("SELECT task_id FROM task_assignment_requests WHERE organization_id = $1 AND dispatcher_id = $2 AND idempotency_key = $3", [req.user.organizationId, req.user.sub, idempotencyKey]);
+    if (previous[0]?.task_id) {
+      const task = await getTask(String(previous[0].task_id), String(req.user.organizationId));
+      return res.status(200).json({ task });
+    }
+    return res.status(409).json({ error: "this task submission is already being processed; retry shortly" });
+  }
+
+  const uploadId = crypto.randomUUID();
+  const stagedPaths: string[] = [];
+  const finalPaths: string[] = [];
+  try {
+    for (const file of files) {
+      const extension = file.originalname.split(".").pop()?.toLowerCase() ?? "bin";
+      const stagedPath = `staging/org/${req.user.organizationId}/tasks/${uploadId}/${crypto.randomUUID()}.${extension}`;
+      const { error } = await taskStorage!.storage.from(taskStorageBucket).upload(stagedPath, file.buffer, { contentType: file.mimetype, upsert: false });
+      if (error) throw new Error("attachment storage failed");
+      stagedPaths.push(stagedPath);
+    }
+  } catch (error) {
+    await removeStoredFiles(stagedPaths);
+    await pool.query("DELETE FROM task_assignment_requests WHERE organization_id = $1 AND dispatcher_id = $2 AND idempotency_key = $3 AND task_id IS NULL", [req.user.organizationId, req.user.sub, idempotencyKey]);
+    console.error("Failed to stage task attachments", { organizationId: req.user.organizationId, error });
+    return res.status(502).json({ error: "attachments could not be uploaded; task was not created" });
+  }
+
+  const client = await pool.connect();
+  let committed = false;
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(`INSERT INTO runner_tasks (organization_id, dispatcher_id, runner_id, client_name, client_address, client_phone, notes, destination_lat, destination_lon, priority, due_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`, [req.user.organizationId, req.user.sub, runnerId, parsed.data.clientName, parsed.data.clientAddress, parsed.data.clientPhone, parsed.data.notes || null, parsed.data.destinationLat ?? null, parsed.data.destinationLon ?? null, parsed.data.priority, parsed.data.dueAt ?? null]);
+    const taskId = String(rows[0].id);
+    for (const document of [...new Set(parsed.data.documents)]) await client.query("INSERT INTO runner_task_documents (task_id, name) VALUES ($1, $2)", [taskId, document]);
+
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index];
+      const extension = file.originalname.split(".").pop()?.toLowerCase() ?? "bin";
+      const finalPath = `org/${req.user.organizationId}/tasks/${taskId}/${crypto.randomUUID()}.${extension}`;
+      const { error } = await taskStorage!.storage.from(taskStorageBucket).move(stagedPaths[index], finalPath);
+      if (error) throw new Error("attachment storage failed");
+      finalPaths.push(finalPath);
+      await client.query("INSERT INTO runner_task_attachments (task_id, organization_id, storage_path, original_name, content_type, size_bytes, uploaded_by) VALUES ($1,$2,$3,$4,$5,$6,$7)", [taskId, req.user.organizationId, finalPath, file.originalname, file.mimetype, file.size, req.user.sub]);
+    }
+    await client.query("UPDATE task_assignment_requests SET task_id = $1 WHERE organization_id = $2 AND dispatcher_id = $3 AND idempotency_key = $4", [taskId, req.user.organizationId, req.user.sub, idempotencyKey]);
+    await client.query("INSERT INTO task_events (organization_id, task_id, actor_id, event_type, metadata) VALUES ($1,$2,$3,$4,$5)", [req.user.organizationId, taskId, req.user.sub, "created", JSON.stringify({ priority: parsed.data.priority, dueAt: parsed.data.dueAt ?? null, attachments: files.length })]);
+    await client.query("COMMIT");
+    committed = true;
+    const task = await getTask(taskId, String(req.user.organizationId));
+    publishCreatedTask(req, task, runnerId);
+    res.status(201).json({ task });
+  } catch (error) {
+    if (!committed) {
+      await client.query("ROLLBACK");
+      await removeStoredFiles([...stagedPaths, ...finalPaths]);
+      await pool.query("DELETE FROM task_assignment_requests WHERE organization_id = $1 AND dispatcher_id = $2 AND idempotency_key = $3 AND task_id IS NULL", [req.user.organizationId, req.user.sub, idempotencyKey]);
+      console.error("Atomic task assignment failed", { organizationId: req.user.organizationId, error });
+      return res.status(502).json({ error: "attachments could not be finalized; task was not created" });
+    }
+    console.error("Task assignment committed but response handling failed", { organizationId: req.user.organizationId, error });
+    res.status(500).json({ error: "task was created but confirmation failed; refresh before retrying" });
+  } finally {
+    client.release();
+  }
+});
+
 apiRouter.post("/runners/:id/tasks", requireDispatcher, async (req: any, res) => {
   const parsed = CreateTaskSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid task details" });
@@ -414,7 +532,10 @@ apiRouter.post("/tasks/:id/attachments", requireDispatcher, taskUpload.single("f
   const extension = file.originalname.split(".").pop()?.toLowerCase() ?? "bin";
   const path = `org/${req.user.organizationId}/tasks/${task.id}/${crypto.randomUUID()}.${extension}`;
   const { error } = await taskStorage.storage.from(taskStorageBucket).upload(path, file.buffer, { contentType: file.mimetype, upsert: false });
-  if (error) return res.status(502).json({ error: "could not store document" });
+  if (error) {
+    console.error("Failed to store task attachment", { taskId: task.id, bucket: taskStorageBucket, error });
+    return res.status(502).json({ error: "document storage is unavailable; please retry or contact support" });
+  }
   const { rows } = await pool.query("INSERT INTO runner_task_attachments (task_id, organization_id, storage_path, original_name, content_type, size_bytes, uploaded_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, original_name, content_type, size_bytes, created_at", [task.id, req.user.organizationId, path, file.originalname, file.mimetype, file.size, req.user.sub]);
   await recordTaskEvent(req.user.organizationId, task.id, req.user.sub, "attachment_added", { name: file.originalname });
   res.status(201).json({ attachment: { id: String(rows[0].id), name: rows[0].original_name, contentType: rows[0].content_type, sizeBytes: Number(rows[0].size_bytes), createdAt: rows[0].created_at } });

@@ -59,6 +59,50 @@ function normaliseIndianMobile(value: string): string | null {
   return /^[6-9]\d{9}$/.test(localNumber) ? `+91${localNumber}` : null;
 }
 
+const allowedAttachmentTypes = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+
+async function uploadTaskAttachment(taskId: string, file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const token = getToken();
+  const response = await fetch(apiUrl(`/api/tasks/${taskId}/attachments`), {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: formData,
+  });
+  if (response.ok) return;
+
+  const body = await response.json().catch(() => null);
+  throw new Error(body?.error ?? `Upload failed (${response.status})`);
+}
+
+async function createTaskWithAttachments(
+  runnerId: string,
+  task: Record<string, unknown>,
+  attachments: File[],
+  idempotencyKey: string,
+): Promise<{ task: DashboardTask }> {
+  const formData = new FormData();
+  formData.append("task", JSON.stringify(task));
+  for (const attachment of attachments) formData.append("attachments", attachment);
+  const token = getToken();
+  const response = await fetch(apiUrl(`/api/runners/${runnerId}/tasks/with-attachments`), {
+    method: "POST",
+    headers: {
+      "Idempotency-Key": idempotencyKey,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(body?.error ?? `Could not create task (${response.status})`);
+  return body;
+}
+
 export default function DashboardPage() {
   const { runners, refresh } = useRunners();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -75,6 +119,7 @@ export default function DashboardPage() {
   const [documentTypes, setDocumentTypes] = useState<string[]>([]);
   const [taskError, setTaskError] = useState<string | null>(null);
   const [taskAttachments, setTaskAttachments] = useState<File[]>([]);
+  const [taskSubmissionKey, setTaskSubmissionKey] = useState<string | null>(null);
   const [taskTab, setTaskTab] = useState<"active" | "completed" | "incomplete">("active");
   const [boardTasks, setBoardTasks] = useState<DashboardTask[]>([]);
   const [pendingDeletion, setPendingDeletion] = useState<DashboardTask | null>(
@@ -232,6 +277,7 @@ export default function DashboardPage() {
     setEditingTask(null);
     setTaskForm(emptyTaskForm);
     setTaskError(null);
+    setTaskSubmissionKey(crypto.randomUUID());
     try {
       const data = await api<{ documentTypes: Array<{ name: string }> }>(
         "/api/document-types",
@@ -248,6 +294,7 @@ export default function DashboardPage() {
     setTaskRunner(runner);
     setEditingTask(task);
     setTaskError(null);
+    setTaskSubmissionKey(null);
     setTaskForm({
       clientName: task.clientName,
       clientAddress: task.clientAddress,
@@ -303,6 +350,16 @@ export default function DashboardPage() {
       return setTaskError(
         "Enter a valid Indian mobile number (for example, +91 98765 43210).",
       );
+    if (taskAttachments.length > 5)
+      return setTaskError("You can attach up to 5 documents to a task.");
+    const invalidAttachment = taskAttachments.find(
+      (file) => file.size > 25 * 1024 * 1024 || !allowedAttachmentTypes.has(file.type),
+    );
+    if (invalidAttachment) {
+      return setTaskError(
+        `${invalidAttachment.name} must be a PDF, DOC, or DOCX file no larger than 25 MB.`,
+      );
+    }
     setFormBusy(true);
     setTaskError(null);
     try {
@@ -319,17 +376,12 @@ export default function DashboardPage() {
           method: "PATCH",
           body: JSON.stringify(payload),
         })
-        : await api<{ task: DashboardTask }>(`/api/runners/${taskRunner.runnerId}/tasks`, {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-      for (const file of taskAttachments) {
-        const formData = new FormData();
-        formData.append("file", file);
-        const response = await fetch(apiUrl(`/api/tasks/${result.task.id}/attachments`), { method: "POST", headers: { ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) }, body: formData });
-        if (!response.ok) throw new Error("Could not upload attachment");
+        : await createTaskWithAttachments(taskRunner.runnerId, payload, taskAttachments, taskSubmissionKey ?? crypto.randomUUID());
+      if (editingTask) {
+        for (const file of taskAttachments) await uploadTaskAttachment(result.task.id, file);
       }
       setTaskAttachments([]);
+      setTaskSubmissionKey(null);
       setTaskRunner(null);
       setEditingTask(null);
       setTaskTab("active");
@@ -550,6 +602,7 @@ export default function DashboardPage() {
                 onClick={() => {
                   setTaskRunner(null);
                   setEditingTask(null);
+                  setTaskSubmissionKey(null);
                 }}
                 className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-2xl text-on-surface-variant hover:bg-surface-variant"
                 aria-label="Close task form"
@@ -693,6 +746,7 @@ export default function DashboardPage() {
                 onClick={() => {
                   setTaskRunner(null);
                   setEditingTask(null);
+                  setTaskSubmissionKey(null);
                 }}
                 className="px-3 py-2 text-sm text-on-surface-variant"
               >
