@@ -67,6 +67,29 @@ function normaliseIndianMobile(value: string): string | null {
   return /^[6-9]\d{9}$/.test(localNumber) ? `+91${localNumber}` : null;
 }
 
+function localDateValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function dueDateLabel(value: string): string {
+  if (!value) return "Choose date";
+  const today = localDateValue(new Date());
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (value === today) return "Today";
+  if (value === localDateValue(tomorrow)) return "Tomorrow";
+  return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(new Date(`${value}T12:00:00`));
+}
+
+function dueTimeLabel(value: string): string {
+  if (!value) return "Any time";
+  const [hours, minutes] = value.split(":").map(Number);
+  return new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit" }).format(new Date(2000, 0, 1, hours, minutes));
+}
+
 const allowedAttachmentTypes = new Set([
   "application/pdf",
   "application/msword",
@@ -176,6 +199,7 @@ export default function DashboardPage() {
     lon: number;
   } | null>(null);
   const [taskNotices, setTaskNotices] = useState<TaskNotice[]>([]);
+  const [duePicker, setDuePicker] = useState<"date" | "time" | null>(null);
 
   useEffect(() => {
     if (!pendingDeletion) return;
@@ -502,6 +526,15 @@ export default function DashboardPage() {
     setTaskRunner(null);
     setEditingTask(null);
     setTaskSubmissionKey(null);
+    setDuePicker(null);
+  }
+
+  function updateDueAt(date: string, time: string) {
+    if (!date) {
+      setTaskForm({ ...taskForm, dueAt: "" });
+      return;
+    }
+    setTaskForm({ ...taskForm, dueAt: `${date}T${time || "09:00"}` });
   }
 
   function removeSelectedAttachment(fileToRemove: File) {
@@ -523,6 +556,11 @@ export default function DashboardPage() {
       && taskAttachments.length <= 5
       && !invalidTaskAttachment,
   );
+  const dueDate = taskForm.dueAt.slice(0, 10);
+  const dueTime = taskForm.dueAt.slice(11, 16);
+  const today = localDateValue(new Date());
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
 
   return (
     <div className="flex min-h-[calc(100dvh-116px)] flex-col bg-panel text-ink lg:h-[calc(100dvh-72px)] lg:min-h-0">
@@ -727,9 +765,30 @@ export default function DashboardPage() {
                     <option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option>
                   </select>
                 </label>
-                <label className="text-sm font-medium">Due time <span className="font-normal text-on-surface-variant">(optional)</span>
-                  <input type="datetime-local" className="mt-1 min-h-11 w-full rounded-xl border border-border bg-transparent px-3 py-2" value={taskForm.dueAt} onChange={(e) => setTaskForm({ ...taskForm, dueAt: e.target.value })} />
-                </label>
+                <div className="relative text-sm font-medium">Due time <span className="font-normal text-on-surface-variant">(optional)</span>
+                  <div className="mt-1 flex gap-2">
+                    <button type="button" onClick={() => setDuePicker(duePicker === "date" ? null : "date")} className="flex min-h-11 min-w-0 flex-1 items-center justify-between rounded-xl border border-border bg-transparent px-3 text-left font-normal hover:bg-surface-variant focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent" aria-expanded={duePicker === "date"}>
+                      <span className={dueDate ? "text-ink" : "text-on-surface-variant"}>{dueDateLabel(dueDate)}</span><span className="ml-2 text-on-surface-variant">⌄</span>
+                    </button>
+                    <button type="button" onClick={() => setDuePicker(duePicker === "time" ? null : "time")} className="flex min-h-11 min-w-0 flex-1 items-center justify-between rounded-xl border border-border bg-transparent px-3 text-left font-normal hover:bg-surface-variant focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent" aria-expanded={duePicker === "time"}>
+                      <span className={dueTime ? "text-ink" : "text-on-surface-variant"}>{dueTimeLabel(dueTime)}</span><span className="ml-2 text-on-surface-variant">⌄</span>
+                    </button>
+                  </div>
+                  {duePicker === "date" && <div className="absolute z-20 mt-2 w-full rounded-xl border border-border bg-surface p-3 shadow-lg">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => { updateDueAt(today, dueTime); setDuePicker(null); }} className="min-h-9 rounded-lg bg-surface-variant px-2 text-xs font-semibold hover:bg-border">Today</button>
+                      <button type="button" onClick={() => { updateDueAt(localDateValue(tomorrow), dueTime); setDuePicker(null); }} className="min-h-9 rounded-lg bg-surface-variant px-2 text-xs font-semibold hover:bg-border">Tomorrow</button>
+                    </div>
+                    <label className="mt-3 block text-xs font-medium text-on-surface-variant">Choose another date<input type="date" min={today} value={dueDate} onChange={(event) => { updateDueAt(event.target.value, dueTime); setDuePicker(null); }} className="mt-1 block min-h-10 w-full rounded-lg border border-border bg-transparent px-2 text-sm text-ink" /></label>
+                  </div>}
+                  {duePicker === "time" && <div className="absolute right-0 z-20 mt-2 w-[min(100%,16rem)] rounded-xl border border-border bg-surface p-3 shadow-lg">
+                    <div className="grid grid-cols-3 gap-2">
+                      {["09:00", "12:00", "15:00", "17:00", "19:00"].map((time) => <button key={time} type="button" onClick={() => { updateDueAt(dueDate || today, time); setDuePicker(null); }} className="min-h-9 rounded-lg bg-surface-variant px-2 text-xs font-semibold hover:bg-border">{dueTimeLabel(time)}</button>)}
+                    </div>
+                    <label className="mt-3 block text-xs font-medium text-on-surface-variant">Choose another time<input type="time" value={dueTime} onChange={(event) => { updateDueAt(dueDate || today, event.target.value); setDuePicker(null); }} className="mt-1 block min-h-10 w-full rounded-lg border border-border bg-transparent px-2 text-sm text-ink" /></label>
+                    <button type="button" onClick={() => { setTaskForm({ ...taskForm, dueAt: "" }); setDuePicker(null); }} className="mt-3 text-xs font-semibold text-accent hover:underline">No deadline</button>
+                  </div>}
+                </div>
 
                 <div className="space-y-2 sm:col-span-2">
                   <label className="text-sm font-medium">Documents to collect</label>
