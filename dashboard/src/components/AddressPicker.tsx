@@ -23,7 +23,7 @@ function AddressSearch({
   value: AddressPin | null;
   onChange: (pin: AddressPin) => void;
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const onChangeRef = useRef(onChange);
   const places = useMapsLibrary("places");
 
@@ -32,44 +32,30 @@ function AddressSearch({
   }, [onChange]);
 
   useEffect(() => {
-    const PlaceAutocompleteElement = (places as any)?.PlaceAutocompleteElement;
-    if (!PlaceAutocompleteElement || !containerRef.current) return;
-    const autocomplete = new PlaceAutocompleteElement({
-      includedRegionCodes: ["in"],
-    }) as any;
-    autocomplete.className = "block w-full";
-    autocomplete.style.border = "0";
-    autocomplete.style.outline = "0";
-    autocomplete.style.background = "transparent";
-    autocomplete.style.color = "#1b1b1f";
-    autocomplete.style.colorScheme = "light";
-    autocomplete.style.height = "32px";
-    autocomplete.style.maxHeight = "32px";
-    autocomplete.setAttribute(
-      "placeholder",
-      "Search an India address or landmark",
-    );
-    autocomplete.setAttribute("aria-label", "Search delivery address");
-    const onSelect = async (event: any) => {
-      const place = event.placePrediction?.toPlace();
-      if (!place) return;
-      await place.fetchFields({
-        fields: ["displayName", "formattedAddress", "location"],
-      });
-      const location = place.location;
+    const Autocomplete = (places as any)?.Autocomplete;
+    if (!Autocomplete || !inputRef.current) return;
+
+    // The standard Maps JavaScript autocomplete is intentionally used here
+    // instead of the newer web component. It works with stable Maps releases
+    // and provides a dependable fallback across all supported browsers.
+    const autocomplete = new Autocomplete(inputRef.current, {
+      componentRestrictions: { country: "in" },
+      fields: ["formatted_address", "name", "geometry"],
+      types: ["geocode", "establishment"],
+    });
+    const onSelect = () => {
+      const place = autocomplete.getPlace();
+      const location = place.geometry?.location;
       if (!location) return;
       onChangeRef.current({
-        address:
-          place.formattedAddress ?? place.displayName ?? "Pinned location",
+        address: place.formatted_address ?? place.name ?? "Pinned location",
         lat: location.lat(),
         lon: location.lng(),
       });
     };
-    autocomplete.addEventListener("gmp-select", onSelect);
-    containerRef.current.replaceChildren(autocomplete);
+    const listener = autocomplete.addListener("place_changed", onSelect);
     return () => {
-      autocomplete.removeEventListener("gmp-select", onSelect);
-      autocomplete.remove();
+      listener.remove();
     };
   }, [places]);
 
@@ -82,7 +68,14 @@ function AddressSearch({
           : "Delivery address search"
       }
     >
-      <div ref={containerRef} className="min-w-0 flex-1" />
+      <input
+        ref={inputRef}
+        type="text"
+        className="h-8 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm text-ink outline-none placeholder:text-on-surface-variant"
+        placeholder="Search an India address or landmark"
+        aria-label="Search delivery address"
+        autoComplete="off"
+      />
     </div>
   );
 }

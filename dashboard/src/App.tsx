@@ -4,7 +4,7 @@ import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import ManageRunnersPage from "./pages/ManageRunnersPage";
 import { tasksWorkspaceEnabled } from "./lib/config";
-import { getToken } from "./lib/auth";
+import { getToken, getUser } from "./lib/auth";
 import AppShell from "./components/AppShell";
 
 // The operational workspace includes map code, so load it only when a
@@ -17,6 +17,11 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   return children;
 }
 
+function RequireAdmin({ children }: { children: JSX.Element }) {
+  if (!getUser()?.isAdmin) return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -24,7 +29,7 @@ export default function App() {
       <Route element={<RequireAuth><AppShell /></RequireAuth>}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/tasks" element={tasksWorkspaceEnabled ? <Suspense fallback={<main className="p-6">Loading Tasks…</main>}><TasksPage /></Suspense> : <Navigate to="/dashboard" replace />} />
-        <Route path="/runners" element={<ManageRunnersPage />} />
+        <Route path="/runners" element={<RequireAdmin><ManageRunnersPage /></RequireAdmin>} />
         <Route path="/analytics" element={<Suspense fallback={<main className="p-6">Loading Analytics…</main>}><AnalyticsPage /></Suspense>} />
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />

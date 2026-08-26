@@ -1,6 +1,6 @@
 import { AppBar, Box, Button, Toolbar, Typography } from "@mui/material";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { clearSession } from "../lib/auth";
+import { clearSession, getUser } from "../lib/auth";
 import { disconnectSocket } from "../lib/socket";
 import { useRunners } from "../hooks/useRunners";
 import { tasksWorkspaceEnabled } from "../lib/config";
@@ -14,6 +14,7 @@ export default function AppShell() {
 function AppShellContent() {
   const nav = useNavigate();
   const { connected } = useRunners();
+  const isAdmin = Boolean(getUser()?.isAdmin);
   const { selectedOperator, clearSelection, openSelector } = useDispatcherSession();
   function signOut() {
     clearSelection();
@@ -106,7 +107,7 @@ function AppShellContent() {
           >
             <NavButton to="/dashboard" label="Dashboard" />
             {tasksWorkspaceEnabled && <NavButton to="/tasks" label="Tasks" />}
-            <NavButton to="/runners" label="Runners" />
+            {isAdmin && <NavButton to="/runners" label="Runners" />}
             <NavButton to="/analytics" label="Analytics" />
           </Box>
           <Box

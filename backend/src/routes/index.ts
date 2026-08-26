@@ -104,7 +104,7 @@ apiRouter.post("/auth/login", async (req, res) => {
 
   const { email, password } = parsed.data;
   const { rows } = await pool.query(
-    "SELECT id, email, password_hash, role, display_name, organization_id FROM users WHERE email = $1",
+    "SELECT id, email, password_hash, role, display_name, organization_id, is_admin FROM users WHERE email = $1",
     [email]
   );
   if (rows.length === 0) return res.status(401).json({ error: "invalid credentials" });
@@ -114,7 +114,7 @@ apiRouter.post("/auth/login", async (req, res) => {
   if (!ok) return res.status(401).json({ error: "invalid credentials" });
 
   const token = jwt.sign(
-    { sub: String(user.id), role: user.role, email: user.email, organizationId: String(user.organization_id) },
+    { sub: String(user.id), role: user.role, isAdmin: Boolean(user.is_admin), email: user.email, organizationId: String(user.organization_id) },
     config.jwtSecret,
     { expiresIn: config.jwtExpiresIn as any }
   );
@@ -125,6 +125,7 @@ apiRouter.post("/auth/login", async (req, res) => {
       id: String(user.id),
       email: user.email,
       role: user.role,
+      isAdmin: Boolean(user.is_admin),
       displayName: user.display_name,
       organizationId: String(user.organization_id),
     },
@@ -156,6 +157,15 @@ function requireUser(req: any, res: any, next: any) {
   if (!auth?.startsWith("Bearer ")) return res.status(401).json({ error: "missing token" });
   try { req.user = jwt.verify(auth.slice(7), config.jwtSecret); next(); }
   catch { res.status(401).json({ error: "invalid token" }); }
+}
+
+// Administration is an explicit capability, not another dispatcher role. This
+// keeps an administrator able to dispatch while protecting roster changes.
+function requireAdmin(req: any, res: any, next: any) {
+  requireDispatcher(req, res, () => {
+    if (!req.user.isAdmin) return res.status(403).json({ error: "admin access required" });
+    next();
+  });
 }
 
 function taskDto(row: any) {
@@ -233,7 +243,13 @@ async function getTask(taskId: string, organizationId: string) {
 
 apiRouter.get("/runners", requireDispatcher, async (_req: any, res) => {
   const includeArchived = _req.query.includeArchived === "true";
-  const { rows: assignments } = await pool.query(
+  const { rows: assignments } = _req.user.isAdmin
+    ? await pool.query(
+      `SELECT id, display_name, email, true AS active FROM users
+       WHERE organization_id = $1 AND role = 'runner' ORDER BY display_name ASC`,
+      [_req.user.organizationId],
+    )
+    : await pool.query(
     `SELECT runner.id, runner.display_name, runner.email
            , assignment.active
      FROM runner_assignments assignment
@@ -287,7 +303,7 @@ apiRouter.get("/runners", requireDispatcher, async (_req: any, res) => {
 
 // Create an account and assign it to the signed-in dispatcher. This deliberately
 // has no public registration route: dispatchers control who can report locations.
-apiRouter.post("/runners", requireDispatcher, async (req: any, res) => {
+apiRouter.post("/runners", requireAdmin, async (req: any, res) => {
   const parsed = CreateRunnerSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid runner details" });
 
@@ -322,21 +338,15 @@ apiRouter.post("/runners", requireDispatcher, async (req: any, res) => {
   }
 });
 
-apiRouter.patch("/runners/:id", requireDispatcher, async (req: any, res) => {
+apiRouter.patch("/runners/:id", requireAdmin, async (req: any, res) => {
   const parsed = UpdateRunnerSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid runner details" });
 
   const { rows } = await pool.query(
-    `UPDATE users runner
-     SET display_name = $1
-     FROM runner_assignments assignment
-     WHERE runner.id = $2
-       AND assignment.runner_id = runner.id
-       AND assignment.dispatcher_id = $3
-       AND assignment.organization_id = $4
-       AND assignment.active = true
-     RETURNING runner.id, runner.email, runner.display_name`,
-    [parsed.data.displayName, req.params.id, req.user.sub, req.user.organizationId]
+    `UPDATE users SET display_name = $1
+     WHERE id = $2 AND organization_id = $3 AND role = 'runner'
+     RETURNING id, email, display_name`,
+    [parsed.data.displayName, req.params.id, req.user.organizationId]
   );
   if (rows.length === 0) return res.status(404).json({ error: "runner not found" });
   const runner = rows[0];
@@ -379,23 +389,23 @@ apiRouter.get("/runners/:id/history", requireDispatcher, async (req: any, res) =
 
 // Archive a runner from this dispatcher's workspace without deleting their
 // task/location history. The assignment can be restored later.
-apiRouter.delete("/runners/:id", requireDispatcher, async (req: any, res) => {
+apiRouter.delete("/runners/:id", requireAdmin, async (req: any, res) => {
   const { rows } = await pool.query(
     `UPDATE runner_assignments SET active = false
-     WHERE runner_id = $1 AND dispatcher_id = $2 AND organization_id = $3 AND active = true
+     WHERE runner_id = $1 AND organization_id = $2 AND active = true
      RETURNING runner_id`,
-    [req.params.id, req.user.sub, req.user.organizationId]
+    [req.params.id, req.user.organizationId]
   );
   if (!rows[0]) return res.status(404).json({ error: "active runner not found" });
   res.json({ ok: true, runnerId: String(rows[0].runner_id) });
 });
 
-apiRouter.post("/runners/:id/restore", requireDispatcher, async (req: any, res) => {
+apiRouter.post("/runners/:id/restore", requireAdmin, async (req: any, res) => {
   const { rows } = await pool.query(
     `UPDATE runner_assignments SET active = true
-     WHERE runner_id = $1 AND dispatcher_id = $2 AND organization_id = $3 AND active = false
+     WHERE runner_id = $1 AND organization_id = $2 AND active = false
      RETURNING runner_id`,
-    [req.params.id, req.user.sub, req.user.organizationId]
+    [req.params.id, req.user.organizationId]
   );
   if (!rows[0]) return res.status(404).json({ error: "archived runner not found" });
   res.json({ ok: true, runnerId: String(rows[0].runner_id) });
@@ -417,7 +427,7 @@ apiRouter.get("/dispatch-operators", requireDispatcher, async (req: any, res) =>
   res.json({ operators: rows.map((row) => ({ id: String(row.id), displayName: row.display_name, active: row.active })) });
 });
 
-apiRouter.post("/dispatch-operators", requireDispatcher, async (req: any, res) => {
+apiRouter.post("/dispatch-operators", requireAdmin, async (req: any, res) => {
   const parsed = DispatchOperatorSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid dispatcher name" });
   const { rows } = await pool.query(
@@ -427,7 +437,7 @@ apiRouter.post("/dispatch-operators", requireDispatcher, async (req: any, res) =
   res.status(201).json({ operator: { id: String(rows[0].id), displayName: rows[0].display_name, active: rows[0].active } });
 });
 
-apiRouter.patch("/dispatch-operators/:id", requireDispatcher, async (req: any, res) => {
+apiRouter.patch("/dispatch-operators/:id", requireAdmin, async (req: any, res) => {
   const parsed = DispatchOperatorSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid dispatcher name" });
   const { rows } = await pool.query(
@@ -438,7 +448,7 @@ apiRouter.patch("/dispatch-operators/:id", requireDispatcher, async (req: any, r
   res.json({ operator: { id: String(rows[0].id), displayName: rows[0].display_name, active: rows[0].active } });
 });
 
-apiRouter.delete("/dispatch-operators/:id", requireDispatcher, async (req: any, res) => {
+apiRouter.delete("/dispatch-operators/:id", requireAdmin, async (req: any, res) => {
   const { rows } = await pool.query(
     "UPDATE dispatch_operators SET active = false WHERE id = $1 AND organization_id = $2 AND active = true RETURNING id",
     [req.params.id, req.user.organizationId],

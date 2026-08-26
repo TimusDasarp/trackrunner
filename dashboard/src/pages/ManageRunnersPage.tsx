@@ -35,6 +35,7 @@ export default function ManageRunnersPage() {
   const [operatorTarget, setOperatorTarget] = useState<DispatchOperator | null | undefined>(undefined);
   const [operatorName, setOperatorName] = useState("");
   const [operatorDeleteTarget, setOperatorDeleteTarget] = useState<DispatchOperator | null>(null);
+  const [selectedOperatorId, setSelectedOperatorId] = useState<string | null>(null);
   const [tab, setTab] = useState(0);
   const refresh = async () => {
     try {
@@ -87,6 +88,7 @@ export default function ManageRunnersPage() {
       if (operatorTarget) await api(`/api/dispatch-operators/${operatorTarget.id}`, { method: "PATCH", body: JSON.stringify({ displayName: operatorName }) });
       else await api("/api/dispatch-operators", { method: "POST", body: JSON.stringify({ displayName: operatorName }) });
       await refreshOperators();
+      setSelectedOperatorId(null);
       setOperatorTarget(undefined);
       setNotice(operatorTarget ? "Dispatcher name updated" : "Dispatcher added");
     } catch (err: any) { setError(err.message ?? "Could not save dispatcher"); }
@@ -99,6 +101,7 @@ export default function ManageRunnersPage() {
       await api(`/api/dispatch-operators/${operatorDeleteTarget.id}`, { method: "DELETE" });
       await refreshOperators();
       setOperatorDeleteTarget(null);
+      setSelectedOperatorId(null);
       setNotice("Dispatcher removed from future task assignments");
     } catch (err: any) { setError(err.message ?? "Could not remove dispatcher"); }
     finally { setBusy(false); }
@@ -154,6 +157,7 @@ export default function ManageRunnersPage() {
       setBusy(false);
     }
   }
+  const selectedOperator = operators.find((operator) => operator.id === selectedOperatorId) ?? null;
   return (
     <main className="mx-auto w-full max-w-6xl p-4 sm:p-6 lg:p-7">
       <Stack
@@ -185,8 +189,13 @@ export default function ManageRunnersPage() {
           <div><Typography fontWeight={800}>Dispatch team</Typography><Typography variant="body2" color="text.secondary">Choose and maintain the names that appear on task assignments.</Typography></div>
           <Button variant="outlined" onClick={() => openOperatorForm(null)} sx={{ borderRadius: 99, alignSelf: { xs: "stretch", sm: "auto" } }}>Add dispatcher</Button>
         </Stack>
-        <Stack direction="row" flexWrap="wrap" gap={1}>
-          {operators.map((operator) => <Paper key={operator.id} variant="outlined" sx={{ px: 1.25, py: 0.75, display: "flex", alignItems: "center", gap: 0.5, borderRadius: 2 }}><Typography variant="body2" fontWeight={700}>{operator.displayName}</Typography><Button size="small" onClick={() => openOperatorForm(operator)}>Edit</Button><Button size="small" color="error" onClick={() => setOperatorDeleteTarget(operator)}>Delete</Button></Paper>)}
+        <Stack direction="row" flexWrap="wrap" gap={1} mb={1.5}>
+          {operators.map((operator) => <Paper key={operator.id} component="button" type="button" onClick={() => setSelectedOperatorId((current) => current === operator.id ? null : operator.id)} variant="outlined" sx={{ px: 1.25, py: 0.85, borderRadius: 2, cursor: "pointer", color: "text.primary", borderColor: selectedOperatorId === operator.id ? "primary.main" : "divider", bgcolor: selectedOperatorId === operator.id ? "#eef6ff" : "background.paper", font: "inherit", "&:hover": { borderColor: "primary.main" } }}><Typography variant="body2" fontWeight={750}>{operator.displayName}</Typography></Paper>)}
+        </Stack>
+        <Stack direction={{ xs: "column", sm: "row" }} gap={1} alignItems={{ sm: "center" }}>
+          <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>{selectedOperator ? `${selectedOperator.displayName} selected` : "Select a dispatcher name to edit or remove it."}</Typography>
+          <Button variant="outlined" disabled={!selectedOperator} onClick={() => selectedOperator && openOperatorForm(selectedOperator)}>Edit</Button>
+          <Button color="error" variant="outlined" disabled={!selectedOperator} onClick={() => selectedOperator && setOperatorDeleteTarget(selectedOperator)}>Delete</Button>
         </Stack>
       </Paper>
       <Paper

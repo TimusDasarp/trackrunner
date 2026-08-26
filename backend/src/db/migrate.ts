@@ -45,6 +45,7 @@ VALUES ('Default organization', 'default')
 ON CONFLICT (slug) DO NOTHING;
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS organization_id INTEGER;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
 UPDATE users
 SET organization_id = (SELECT id FROM organizations WHERE slug = 'default')
 WHERE organization_id IS NULL;
