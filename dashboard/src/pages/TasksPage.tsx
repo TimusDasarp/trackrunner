@@ -249,7 +249,7 @@ export default function TasksPage() {
         mb={3}
       >
         <div>
-          <Typography variant="h4" fontWeight={800}>
+          <Typography variant="h5" fontWeight={700}>
             Tasks
           </Typography>
           <Typography color="text.secondary">
