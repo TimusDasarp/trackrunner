@@ -3,7 +3,6 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import ManageRunnersPage from "./pages/ManageRunnersPage";
-import AnalyticsPage from "./pages/AnalyticsPage";
 import { tasksWorkspaceEnabled } from "./lib/config";
 import { getToken } from "./lib/auth";
 import AppShell from "./components/AppShell";
@@ -11,6 +10,7 @@ import AppShell from "./components/AppShell";
 // The operational workspace includes map code, so load it only when a
 // dispatcher asks for it instead of adding that cost to the initial dashboard.
 const TasksPage = lazy(() => import("./pages/TasksPage"));
+const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   if (!getToken()) return <Navigate to="/login" replace />;
@@ -25,7 +25,7 @@ export default function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/tasks" element={tasksWorkspaceEnabled ? <Suspense fallback={<main className="p-6">Loading Tasks…</main>}><TasksPage /></Suspense> : <Navigate to="/dashboard" replace />} />
         <Route path="/runners" element={<ManageRunnersPage />} />
-        <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/analytics" element={<Suspense fallback={<main className="p-6">Loading Analytics…</main>}><AnalyticsPage /></Suspense>} />
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

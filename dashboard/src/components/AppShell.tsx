@@ -99,6 +99,7 @@ export default function AppShell() {
             <NavButton to="/dashboard" label="Dashboard" />
             {tasksWorkspaceEnabled && <NavButton to="/tasks" label="Tasks" />}
             <NavButton to="/runners" label="Runners" />
+            <NavButton to="/analytics" label="Analytics" />
           </Box>
           <Box
             sx={{

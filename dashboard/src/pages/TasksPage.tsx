@@ -53,24 +53,6 @@ type TaskAttachment = {
   sizeBytes: number;
   createdAt: string;
 };
-type AnalyticsOverview = {
-  totals: {
-    assigned: number;
-    completed: number;
-    unable: number;
-    overdue: number;
-    median_ack_seconds: number | null;
-    median_cycle_seconds: number | null;
-  };
-  byRunner: Array<{
-    runner_id: string;
-    display_name: string;
-    assigned: number;
-    completed: number;
-    median_cycle_seconds: number | null;
-  }>;
-};
-
 function formatDate(value?: string | null) {
   if (!value) return "No schedule set";
   const date = new Date(value);
@@ -82,13 +64,6 @@ function formatDate(value?: string | null) {
         hour: "numeric",
         minute: "2-digit",
       }).format(date);
-}
-
-function duration(seconds: number | null) {
-  if (seconds == null) return "—";
-  return seconds < 3600
-    ? `${Math.round(seconds / 60)} min`
-    : `${(seconds / 3600).toFixed(1)} hr`;
 }
 
 function priorityTone(priority?: TaskPriority) {
@@ -107,7 +82,6 @@ export default function TasksPage() {
   const { runners } = useRunners();
   const [params, setParams] = useSearchParams();
   const [tasks, setTasks] = useState<DispatcherTask[]>([]);
-  const [overview, setOverview] = useState<AnalyticsOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -128,18 +102,16 @@ export default function TasksPage() {
     try {
       // The backend groups tasks by scope. Combining the three scopes gives the
       // frontend one dependable queue, so every filter has the same data source.
-      const [active, completed, incomplete, analytics] = await Promise.all([
+      const [active, completed, incomplete] = await Promise.all([
         api<{ tasks: DispatcherTask[] }>("/api/tasks?scope=active"),
         api<{ tasks: DispatcherTask[] }>("/api/tasks?scope=completed"),
         api<{ tasks: DispatcherTask[] }>("/api/tasks?scope=incomplete"),
-        api<AnalyticsOverview>("/api/analytics/overview?days=7"),
       ]);
       const uniqueTasks = new Map<string, DispatcherTask>();
       [...active.tasks, ...completed.tasks, ...incomplete.tasks].forEach(
         (task) => uniqueTasks.set(task.id, task),
       );
       setTasks([...uniqueTasks.values()]);
-      setOverview(analytics);
     } catch {
       setError(
         "Tasks could not be loaded. Check your connection and try again.",
@@ -262,32 +234,6 @@ export default function TasksPage() {
     );
   }
 
-  const totals = overview?.totals;
-  const analyticsCards = [
-    {
-      label: "Assigned",
-      value: totals?.assigned ?? "—",
-      onClick: clearFilters,
-    },
-    {
-      label: "Completed",
-      value: totals?.completed ?? "—",
-      onClick: () => applyQuickView("completed"),
-    },
-    {
-      label: "Overdue",
-      value: totals?.overdue ?? "—",
-      onClick: () => applyQuickView("at-risk"),
-    },
-    {
-      label: "Completion rate",
-      value: totals
-        ? `${totals.assigned ? Math.round((totals.completed / totals.assigned) * 100) : 0}%`
-        : "—",
-      onClick: () => applyQuickView("completed"),
-    },
-  ];
-
   return (
     <main className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-7">
       <Stack
@@ -331,16 +277,7 @@ export default function TasksPage() {
         </Alert>
       )}
 
-      <Box
-        display="grid"
-        gridTemplateColumns={{
-          xs: "1fr",
-          lg: "minmax(0, 3fr) minmax(300px, 2fr)",
-        }}
-        gap={2}
-        alignItems="start"
-      >
-        <Stack gap={2} minWidth={0}>
+      <Stack gap={2} minWidth={0}>
           <Paper
             elevation={0}
             sx={{ border: "1px solid #e3e1e9", p: { xs: 1.5, sm: 2 } }}
@@ -518,7 +455,16 @@ export default function TasksPage() {
                 </Button>
               </Box>
             ) : view === "list" ? (
-              <Stack gap={1} p={{ xs: 1, sm: 1.5 }}>
+              <Box
+                display="grid"
+                gridTemplateColumns={{
+                  xs: "1fr",
+                  sm: "repeat(2, minmax(0, 1fr))",
+                  lg: "repeat(3, minmax(0, 1fr))",
+                }}
+                gap={1}
+                p={{ xs: 1, sm: 1.5 }}
+              >
                 {visibleTasks.map((task) => (
                   <TaskRow
                     key={task.id}
@@ -529,7 +475,7 @@ export default function TasksPage() {
                     onOpen={() => openTask(task.id)}
                   />
                 ))}
-              </Stack>
+              </Box>
             ) : (
               <TaskBoardView
                 tasks={visibleTasks}
@@ -538,89 +484,7 @@ export default function TasksPage() {
               />
             )}
           </Paper>
-        </Stack>
-        <Paper
-          elevation={0}
-          sx={{
-            border: "1px solid #e3e1e9",
-            p: 2,
-            position: { lg: "sticky" },
-            top: { lg: 92 },
-          }}
-        >
-          <Typography fontWeight={800}>Analytics</Typography>
-          <Typography variant="body2" color="text.secondary" mb={2}>
-            Last 7 days. Select a card to focus the queue.
-          </Typography>
-          <Box
-            display="grid"
-            gridTemplateColumns="repeat(2,minmax(0,1fr))"
-            gap={1}
-          >
-            {analyticsCards.map((card) => (
-              <Paper
-                component="button"
-                key={card.label}
-                onClick={card.onClick}
-                elevation={0}
-                sx={{
-                  appearance: "none",
-                  textAlign: "left",
-                  cursor: "pointer",
-                  border: "1px solid #e3e1e9",
-                  
-                  p: 1.25,
-                  bgcolor: "#fff",
-                  "&:hover": {
-                    borderColor: "primary.main",
-                    bgcolor: "#f7fbff",
-                  },
-                }}
-              >
-                <Typography variant="caption" color="text.secondary">
-                  {card.label}
-                </Typography>
-                <Typography variant="h6" fontWeight={800}>
-                  {card.value}
-                </Typography>
-              </Paper>
-            ))}
-          </Box>
-          <Divider sx={{ my: 2 }} />
-          <Stack gap={1.25}>
-            <Typography fontWeight={700} variant="body2">
-              Runner performance
-            </Typography>
-            {overview?.byRunner.slice(0, 5).map((runner) => (
-              <Box
-                key={runner.runner_id}
-                display="grid"
-                gridTemplateColumns="minmax(0,1fr) auto"
-                gap={1}
-              >
-                <div>
-                  <Typography variant="body2" fontWeight={700} noWrap>
-                    {runner.display_name}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {runner.completed} completed of {runner.assigned} · median{" "}
-                    {duration(runner.median_cycle_seconds)}
-                  </Typography>
-                </div>
-                <Typography variant="body2" fontWeight={800}>
-                  {runner.assigned
-                    ? `${Math.round((runner.completed / runner.assigned) * 100)}%`
-                    : "0%"}
-                </Typography>
-              </Box>
-            )) ?? (
-              <Typography variant="body2" color="text.secondary">
-                Analytics will appear when task data is available.
-              </Typography>
-            )}
-          </Stack>
-        </Paper>
-      </Box>
+      </Stack>
       <Drawer
         anchor="right"
         open={Boolean(selectedTask)}
