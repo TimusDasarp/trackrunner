@@ -62,7 +62,7 @@ function AddressMap({ value, onChange }: { value: AddressPin | null; onChange: (
   </Map>;
 }
 
-export default function AddressPicker({ value, onChange }: { value: AddressPin | null; onChange: (pin: AddressPin) => void }) {
-  if (!hasGoogleMapsConfig) return <div className="mb-3 space-y-2"><label className="block text-sm">Delivery address</label><MapSetupNotice /></div>;
-  return <div className="mb-3 space-y-2"><label className="block text-sm">Delivery address</label><APIProvider apiKey={googleMapsApiKey} libraries={["places"]}><AddressSearch value={value} onChange={onChange} /><AddressMap value={value} onChange={onChange} /></APIProvider><p className="text-xs text-on-surface-variant">Search then choose an address, or click or drag the pin to set the delivery location.</p></div>;
+export default function AddressPicker({ value, onChange, label = "Delivery address" }: { value: AddressPin | null; onChange: (pin: AddressPin) => void; label?: string }) {
+  if (!hasGoogleMapsConfig) return <div className="mb-3 space-y-2"><label className="block text-sm">{label}</label><MapSetupNotice /></div>;
+  return <div className="mb-3 space-y-2"><label className="block text-sm">{label}</label><APIProvider apiKey={googleMapsApiKey} libraries={["places"]}><AddressSearch value={value} onChange={onChange} /><AddressMap value={value} onChange={onChange} /></APIProvider><p className="text-xs text-on-surface-variant">Search then choose an address, or click or drag the pin to set the delivery location.</p></div>;
 }
