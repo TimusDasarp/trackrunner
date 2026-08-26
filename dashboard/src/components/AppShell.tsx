@@ -60,7 +60,7 @@ function AppShellContent() {
               alignItems: "center",
               gap: 1.25,
               mr: { md: 2 },
-              flexGrow: { xs: 1, sm: 0 },
+              flexGrow: 0,
               minWidth: 0,
             }}
           >
