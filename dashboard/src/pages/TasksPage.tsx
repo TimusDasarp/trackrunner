@@ -240,7 +240,7 @@ export default function TasksPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl p-4 sm:p-6 lg:p-7">
+    <main className="mx-auto w-full max-w-6xl overflow-x-hidden p-4 sm:p-6 lg:p-7">
       <Stack
         direction={{ xs: "column", md: "row" }}
         justifyContent="space-between"
@@ -248,7 +248,7 @@ export default function TasksPage() {
         gap={1.5}
         mb={3}
       >
-        <div>
+        <div style={{ minWidth: 0 }}>
           <Typography variant="h5" fontWeight={700}>
             Tasks
           </Typography>
@@ -427,7 +427,7 @@ export default function TasksPage() {
               alignItems="center"
               justifyContent="space-between"
             >
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <Typography fontWeight={800}>Operational queue</Typography>
                 <Typography
                   aria-live="polite"
@@ -479,7 +479,10 @@ export default function TasksPage() {
               <Box
                 display="grid"
                 gridTemplateColumns={{
-                  xs: "1fr",
+                  // `1fr` carries an automatic content minimum. Using an
+                  // explicit zero minimum keeps a long address, chip, or name
+                  // from widening a mobile queue card beyond its column.
+                  xs: "minmax(0, 1fr)",
                   sm: "repeat(2, minmax(0, 1fr))",
                   lg: "repeat(3, minmax(0, 1fr))",
                 }}
@@ -552,7 +555,7 @@ function TaskBoardView({
     },
   ];
   return (
-    <Box sx={{ overflowX: "auto", p: 1.5 }}>
+    <Box sx={{ maxWidth: "100%", overflowX: "auto", p: 1.5 }}>
       <Stack
         direction="row"
         gap={1.25}
@@ -678,6 +681,7 @@ function TaskRow({
         borderLeft: `4px solid ${priority.border}`,
         p: 1.5,
         bgcolor: selected ? "#f5faff" : "#fff",
+        boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
         "&:hover": {
@@ -714,6 +718,7 @@ function TaskRow({
           direction="row"
           gap={0.75}
           flexWrap="wrap"
+          minWidth={0}
           justifyContent={{ xs: "flex-start", sm: "flex-end" }}
         >
           <Chip
@@ -763,9 +768,11 @@ function TaskRow({
       </Stack>
       <Stack
         direction="row"
+        flexWrap="wrap"
         justifyContent="space-between"
         alignItems="center"
         mt={1.25}
+        gap={0.75}
       >
         <Chip
           size="small"
