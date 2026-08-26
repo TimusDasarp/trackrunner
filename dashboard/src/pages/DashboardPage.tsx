@@ -754,8 +754,7 @@ export default function DashboardPage() {
                 </label>
 
                 <div className="space-y-2 sm:col-span-2">
-                  <AddressPicker label="Client location" value={taskForm.destinationLat != null && taskForm.destinationLon != null ? { address: taskForm.clientAddress, lat: taskForm.destinationLat, lon: taskForm.destinationLon } : null} onChange={(pin: AddressPin) => setTaskForm({ ...taskForm, clientAddress: pin.address, destinationLat: pin.lat, destinationLon: pin.lon })} />
-                  {taskForm.clientAddress && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"><span className="font-semibold">Destination:</span> {taskForm.clientAddress}</div>}
+                  <AddressPicker label="Client location" value={taskForm.destinationLat != null && taskForm.destinationLon != null ? { address: taskForm.clientAddress, lat: taskForm.destinationLat, lon: taskForm.destinationLon } : null} onChange={(pin: AddressPin) => setTaskForm({ ...taskForm, clientAddress: pin.address, destinationLat: pin.lat, destinationLon: pin.lon })} onReset={() => setTaskForm({ ...taskForm, clientAddress: "", destinationLat: undefined, destinationLon: undefined })} />
                 </div>
               </div>
             </div>
