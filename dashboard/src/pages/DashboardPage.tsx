@@ -81,13 +81,19 @@ function dueDateLabel(value: string): string {
   tomorrow.setDate(tomorrow.getDate() + 1);
   if (value === today) return "Today";
   if (value === localDateValue(tomorrow)) return "Tomorrow";
-  return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(new Date(`${value}T12:00:00`));
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+  }).format(new Date(`${value}T12:00:00`));
 }
 
 function dueTimeLabel(value: string): string {
   if (!value) return "Any time";
   const [hours, minutes] = value.split(":").map(Number);
-  return new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit" }).format(new Date(2000, 0, 1, hours, minutes));
+  return new Intl.DateTimeFormat("en-IN", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(2000, 0, 1, hours, minutes));
 }
 
 const allowedAttachmentTypes = new Set([
@@ -98,7 +104,9 @@ const allowedAttachmentTypes = new Set([
 
 function waitForOnline(): Promise<void> {
   if (navigator.onLine) return Promise.resolve();
-  return new Promise((resolve) => window.addEventListener("online", () => resolve(), { once: true }));
+  return new Promise((resolve) =>
+    window.addEventListener("online", () => resolve(), { once: true }),
+  );
 }
 
 function wait(milliseconds: number): Promise<void> {
@@ -113,16 +121,22 @@ async function fetchWithNetworkRetry(
   const attempts = 3;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     if (!navigator.onLine) {
-      onRetry("Connection lost. Waiting for internet to retry task assignment…");
+      onRetry(
+        "Connection lost. Waiting for internet to retry task assignment…",
+      );
       await waitForOnline();
     }
     try {
       return await fetch(url, options);
     } catch (error) {
       if (attempt === attempts - 1) {
-        throw new Error("Could not reach the server. Your task was not created; please try again when connected.");
+        throw new Error(
+          "Could not reach the server. Your task was not created; please try again when connected.",
+        );
       }
-      onRetry(`Connection interrupted. Retrying task assignment (${attempt + 1}/${attempts - 1})…`);
+      onRetry(
+        `Connection interrupted. Retrying task assignment (${attempt + 1}/${attempts - 1})…`,
+      );
       if (!navigator.onLine) await waitForOnline();
       else await wait(1_000 * (attempt + 1));
     }
@@ -154,18 +168,26 @@ async function createTaskWithAttachments(
 ): Promise<{ task: DashboardTask }> {
   const formData = new FormData();
   formData.append("task", JSON.stringify(task));
-  for (const attachment of attachments) formData.append("attachments", attachment);
+  for (const attachment of attachments)
+    formData.append("attachments", attachment);
   const token = getToken();
-  const response = await fetchWithNetworkRetry(apiUrl(`/api/runners/${runnerId}/tasks/with-attachments`), {
-    method: "POST",
-    headers: {
-      "Idempotency-Key": idempotencyKey,
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  const response = await fetchWithNetworkRetry(
+    apiUrl(`/api/runners/${runnerId}/tasks/with-attachments`),
+    {
+      method: "POST",
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
     },
-    body: formData,
-  }, onNetworkRetry);
+    onNetworkRetry,
+  );
   const body = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(body?.error ?? `Could not create task (${response.status})`);
+  if (!response.ok)
+    throw new Error(
+      body?.error ?? `Could not create task (${response.status})`,
+    );
   return body;
 }
 
@@ -185,11 +207,19 @@ export default function DashboardPage() {
   const [documentTypes, setDocumentTypes] = useState<string[]>([]);
   const [taskError, setTaskError] = useState<string | null>(null);
   const [taskAttachments, setTaskAttachments] = useState<File[]>([]);
-  const [existingTaskAttachments, setExistingTaskAttachments] = useState<TaskAttachment[]>([]);
+  const [existingTaskAttachments, setExistingTaskAttachments] = useState<
+    TaskAttachment[]
+  >([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false);
-  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
-  const [taskSubmissionKey, setTaskSubmissionKey] = useState<string | null>(null);
-  const [taskTab, setTaskTab] = useState<"active" | "completed" | "incomplete">("active");
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<
+    string | null
+  >(null);
+  const [taskSubmissionKey, setTaskSubmissionKey] = useState<string | null>(
+    null,
+  );
+  const [taskTab, setTaskTab] = useState<"active" | "completed" | "incomplete">(
+    "active",
+  );
   const [boardTasks, setBoardTasks] = useState<DashboardTask[]>([]);
   const [pendingDeletion, setPendingDeletion] = useState<DashboardTask | null>(
     null,
@@ -256,13 +286,14 @@ export default function DashboardPage() {
       status: string;
     }) => {
       setBoardTasks((current) => {
-        const matchesTab = taskTab === "completed"
-          ? task.status === "completed"
-          : taskTab === "incomplete"
-            ? task.status === "unable_to_complete"
-            : task.status !== "completed" && task.status !== "unable_to_complete";
-        if (!matchesTab)
-          return current.filter((item) => item.id !== task.id);
+        const matchesTab =
+          taskTab === "completed"
+            ? task.status === "completed"
+            : taskTab === "incomplete"
+              ? task.status === "unable_to_complete"
+              : task.status !== "completed" &&
+                task.status !== "unable_to_complete";
+        if (!matchesTab) return current.filter((item) => item.id !== task.id);
         return [task, ...current.filter((item) => item.id !== task.id)];
       });
     };
@@ -394,7 +425,9 @@ export default function DashboardPage() {
       setDocumentTypes([]);
     }
     try {
-      const data = await api<{ attachments: TaskAttachment[] }>(`/api/tasks/${task.id}/attachments`);
+      const data = await api<{ attachments: TaskAttachment[] }>(
+        `/api/tasks/${task.id}/attachments`,
+      );
       setExistingTaskAttachments(data.attachments ?? []);
     } catch (error: any) {
       setTaskError(error.message ?? "Could not load existing attachments");
@@ -405,19 +438,29 @@ export default function DashboardPage() {
 
   async function openTaskAttachment(taskId: string, attachmentId: string) {
     try {
-      const data = await api<{ url: string }>(`/api/tasks/${taskId}/attachments/${attachmentId}/download`);
+      const data = await api<{ url: string }>(
+        `/api/tasks/${taskId}/attachments/${attachmentId}/download`,
+      );
       window.open(data.url, "_blank", "noopener,noreferrer");
     } catch (error: any) {
       setTaskError(error.message ?? "Could not open attachment");
     }
   }
 
-  async function deleteTaskAttachment(taskId: string, attachment: TaskAttachment) {
-    if (!window.confirm(`Delete ${attachment.name}? This cannot be undone.`)) return;
+  async function deleteTaskAttachment(
+    taskId: string,
+    attachment: TaskAttachment,
+  ) {
+    if (!window.confirm(`Delete ${attachment.name}? This cannot be undone.`))
+      return;
     setDeletingAttachmentId(attachment.id);
     try {
-      await api(`/api/tasks/${taskId}/attachments/${attachment.id}`, { method: "DELETE" });
-      setExistingTaskAttachments((attachments) => attachments.filter((item) => item.id !== attachment.id));
+      await api(`/api/tasks/${taskId}/attachments/${attachment.id}`, {
+        method: "DELETE",
+      });
+      setExistingTaskAttachments((attachments) =>
+        attachments.filter((item) => item.id !== attachment.id),
+      );
     } catch (error: any) {
       setTaskError(error.message ?? "Could not delete attachment");
     } finally {
@@ -458,7 +501,8 @@ export default function DashboardPage() {
     if (taskAttachments.length > 5)
       return setTaskError("You can attach up to 5 documents to a task.");
     const invalidAttachment = taskAttachments.find(
-      (file) => file.size > 25 * 1024 * 1024 || !allowedAttachmentTypes.has(file.type),
+      (file) =>
+        file.size > 25 * 1024 * 1024 || !allowedAttachmentTypes.has(file.type),
     );
     if (invalidAttachment) {
       return setTaskError(
@@ -478,12 +522,19 @@ export default function DashboardPage() {
       };
       const result = editingTask
         ? await api<{ task: DashboardTask }>(`/api/tasks/${editingTask.id}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        })
-        : await createTaskWithAttachments(taskRunner.runnerId, payload, taskAttachments, taskSubmissionKey ?? crypto.randomUUID(), setTaskError);
+            method: "PATCH",
+            body: JSON.stringify(payload),
+          })
+        : await createTaskWithAttachments(
+            taskRunner.runnerId,
+            payload,
+            taskAttachments,
+            taskSubmissionKey ?? crypto.randomUUID(),
+            setTaskError,
+          );
       if (editingTask) {
-        for (const file of taskAttachments) await uploadTaskAttachment(result.task.id, file);
+        for (const file of taskAttachments)
+          await uploadTaskAttachment(result.task.id, file);
       }
       setTaskAttachments([]);
       setTaskSubmissionKey(null);
@@ -538,7 +589,9 @@ export default function DashboardPage() {
   }
 
   function removeSelectedAttachment(fileToRemove: File) {
-    setTaskAttachments((attachments) => attachments.filter((file) => file !== fileToRemove));
+    setTaskAttachments((attachments) =>
+      attachments.filter((file) => file !== fileToRemove),
+    );
   }
 
   const selectedDocuments = [
@@ -546,15 +599,16 @@ export default function DashboardPage() {
     taskForm.customDocument.trim(),
   ].filter(Boolean);
   const invalidTaskAttachment = taskAttachments.find(
-    (file) => file.size > 25 * 1024 * 1024 || !allowedAttachmentTypes.has(file.type),
+    (file) =>
+      file.size > 25 * 1024 * 1024 || !allowedAttachmentTypes.has(file.type),
   );
   const isTaskReadyToAssign = Boolean(
-    taskForm.clientName.trim()
-      && taskForm.clientAddress.trim()
-      && normaliseIndianMobile(taskForm.clientPhone)
-      && selectedDocuments.length > 0
-      && taskAttachments.length <= 5
-      && !invalidTaskAttachment,
+    taskForm.clientName.trim() &&
+    taskForm.clientAddress.trim() &&
+    normaliseIndianMobile(taskForm.clientPhone) &&
+    selectedDocuments.length > 0 &&
+    taskAttachments.length <= 5 &&
+    !invalidTaskAttachment,
   );
   const dueDate = taskForm.dueAt.slice(0, 10);
   const dueTime = taskForm.dueAt.slice(11, 16);
@@ -572,9 +626,18 @@ export default function DashboardPage() {
           <div className="border-b border-border px-5 py-4">
             <div className="text-sm font-semibold">Available Runners</div>
             <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-on-surface-variant">
-              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-600" />Location always allowed</span>
-              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-600" />Location when app is open</span>
-              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-slate-500" />Offline</span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-emerald-600" />
+                Location always allowed
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-amber-600" />
+                Location when app is open
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-slate-500" />
+                Offline
+              </span>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 border-b border-border bg-surface-variant p-3">
@@ -583,11 +646,7 @@ export default function DashboardPage() {
               value={statusCounts.live}
               tone="bg-emerald-500"
             />
-            <Metric
-              label="Idle"
-              value={statusCounts.idle}
-              tone="bg-sky-500"
-            />
+            <Metric label="Idle" value={statusCounts.idle} tone="bg-sky-500" />
             {/* <Metric
               label="Needs attention"
               value={statusCounts.stale}
@@ -615,9 +674,19 @@ export default function DashboardPage() {
               <div className="px-5 pt-4 text-sm font-semibold">
                 Runner details
               </div>
-              <RunnerDetail runner={selected} onRename={openRename} onCreateTask={openTask}>
+              <RunnerDetail
+                runner={selected}
+                onRename={openRename}
+                onCreateTask={openTask}
+              >
                 <TaskBoard
-                  tasks={selectedId ? boardTasks.filter((task) => task.runnerId === selectedId) : []}
+                  tasks={
+                    selectedId
+                      ? boardTasks.filter(
+                          (task) => task.runnerId === selectedId,
+                        )
+                      : []
+                  }
                   tab={taskTab}
                   onTabChange={setTaskTab}
                   selectedRunnerName={selected?.displayName ?? null}
@@ -636,10 +705,35 @@ export default function DashboardPage() {
           color="default"
         >
           <div className="flex items-center justify-between px-5 py-4">
-            <div><div className="text-sm font-semibold">Location</div><p className="mt-0.5 text-xs text-on-surface-variant">{selected?.hasLocation ? "Live location and route" : "Location is unavailable"}</p></div>
-            <button type="button" onClick={() => setIsMapOpen((open) => !open)} className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-surface-variant" aria-expanded={isMapOpen}>{isMapOpen ? "Hide map" : "View map"}</button>
+            <div>
+              <div className="text-sm font-semibold">Location</div>
+              <p className="mt-0.5 text-xs text-on-surface-variant">
+                {selected?.hasLocation
+                  ? "Live location and route"
+                  : "Location is unavailable"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsMapOpen((open) => !open)}
+              className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-surface-variant"
+              aria-expanded={isMapOpen}
+            >
+              {isMapOpen ? "Hide map" : "View map"}
+            </button>
           </div>
-          {isMapOpen && <div className="border-t border-border p-3 lg:min-h-0 lg:flex-1"><RunnerMap runners={runners} selectedId={selectedId} trail={trail} onSelect={(runnerId) => setSelectedId(runnerId || null)} viewerLocation={viewerLocation} compact /></div>}
+          {isMapOpen && (
+            <div className="border-t border-border p-3 lg:min-h-0 lg:flex-1">
+              <RunnerMap
+                runners={runners}
+                selectedId={selectedId}
+                trail={trail}
+                onSelect={(runnerId) => setSelectedId(runnerId || null)}
+                viewerLocation={viewerLocation}
+                compact
+              />
+            </div>
+          )}
         </Card>
       </main>
 
@@ -684,7 +778,7 @@ export default function DashboardPage() {
               <>
                 <label className="block text-sm mb-1">Runner email</label>
                 <input
-                className="mb-3 w-full rounded-xl border border-border bg-transparent px-3 py-2 focus:border-accent focus:outline-none"
+                  className="mb-3 w-full rounded-xl border border-border bg-transparent px-3 py-2 focus:border-accent focus:outline-none"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   required
@@ -692,7 +786,7 @@ export default function DashboardPage() {
                 />
                 <label className="block text-sm mb-1">Temporary password</label>
                 <input
-                className="mb-3 w-full rounded-xl border border-border bg-transparent px-3 py-2 focus:border-accent focus:outline-none"
+                  className="mb-3 w-full rounded-xl border border-border bg-transparent px-3 py-2 focus:border-accent focus:outline-none"
                   value={form.password}
                   onChange={(e) =>
                     setForm({ ...form, password: e.target.value })
@@ -729,17 +823,28 @@ export default function DashboardPage() {
         </div>
       )}
       {taskRunner && (
-        <div className="fixed inset-0 z-[1400] flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4">
+        <div className="fixed inset-0 z-[1400] flex items-end justify-center overflow-hidden bg-black/60 px-0 pb-0 pt-[max(12px,env(safe-area-inset-top))] sm:items-center sm:p-4">
           <form
             onSubmit={saveTask}
-            className="flex max-h-[94vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[28px] bg-surface shadow-2xl sm:rounded-[28px]"
+            className="flex h-full max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-t-[28px] bg-surface shadow-2xl sm:h-auto sm:max-h-[94dvh] sm:rounded-[28px]"
           >
             <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <h2 className="text-base font-semibold">{editingTask ? "Edit task for" : "Assign task to"}</h2>
+                <h2 className="text-base font-semibold">
+                  {editingTask ? "Edit task for" : "Assign task to"}
+                </h2>
                 <div className="inline-flex max-w-full items-center gap-2 rounded-full bg-surface-variant px-2.5 py-1 text-xs font-medium text-on-surface-variant">
-                  <span className={`h-2 w-2 shrink-0 rounded-full ${getRunnerStatus(taskRunner) === "live" ? "bg-emerald-600" : getRunnerStatus(taskRunner) === "idle" ? "bg-amber-600" : "bg-slate-500"}`} />
-                  <span className="truncate">{taskRunner.displayName} · {getRunnerStatus(taskRunner) === "live" ? "Location live" : getRunnerStatus(taskRunner) === "idle" ? "Location while open" : "Offline"}</span>
+                  <span
+                    className={`h-2 w-2 shrink-0 rounded-full ${getRunnerStatus(taskRunner) === "live" ? "bg-emerald-600" : getRunnerStatus(taskRunner) === "idle" ? "bg-amber-600" : "bg-slate-500"}`}
+                  />
+                  <span className="truncate">
+                    {taskRunner.displayName} ·{" "}
+                    {getRunnerStatus(taskRunner) === "live"
+                      ? "Location live"
+                      : getRunnerStatus(taskRunner) === "idle"
+                        ? "Location while open"
+                        : "Offline"}
+                  </span>
                 </div>
               </div>
               <button
@@ -753,75 +858,414 @@ export default function DashboardPage() {
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5">
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                <label className="text-sm font-medium">Client name
-                  <input className="mt-1 min-h-11 w-full rounded-xl border border-border bg-transparent px-3 py-2" required value={taskForm.clientName} onChange={(e) => setTaskForm({ ...taskForm, clientName: e.target.value })} />
+                <label className="text-sm font-medium">
+                  Client name
+                  <input
+                    className="mt-1 min-h-11 w-full rounded-xl border border-border bg-transparent px-3 py-2"
+                    required
+                    value={taskForm.clientName}
+                    onChange={(e) =>
+                      setTaskForm({ ...taskForm, clientName: e.target.value })
+                    }
+                  />
                 </label>
-                <label className="text-sm font-medium">Phone number <span className="font-normal text-on-surface-variant">(India)</span>
-                  <input className="mt-1 min-h-11 w-full rounded-xl border border-border bg-transparent px-3 py-2" required type="tel" inputMode="numeric" autoComplete="tel" maxLength={16} placeholder="+91 98765 43210" value={taskForm.clientPhone} onChange={(e) => setTaskForm({ ...taskForm, clientPhone: e.target.value })} />
-                  {taskForm.clientPhone && !normaliseIndianMobile(taskForm.clientPhone) && <p className="mt-1 text-xs font-normal text-red-700">Enter a valid 10-digit Indian mobile number beginning with 6–9.</p>}
+                <label className="text-sm font-medium">
+                  Phone number{" "}
+                  <span className="font-normal text-on-surface-variant">
+                    (India)
+                  </span>
+                  <input
+                    className="mt-1 min-h-11 w-full rounded-xl border border-border bg-transparent px-3 py-2"
+                    required
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="tel"
+                    maxLength={16}
+                    placeholder="+91 98765 43210"
+                    value={taskForm.clientPhone}
+                    onChange={(e) =>
+                      setTaskForm({ ...taskForm, clientPhone: e.target.value })
+                    }
+                  />
+                  {taskForm.clientPhone &&
+                    !normaliseIndianMobile(taskForm.clientPhone) && (
+                      <p className="mt-1 text-xs font-normal text-red-700">
+                        Enter a valid 10-digit Indian mobile number beginning
+                        with 6–9.
+                      </p>
+                    )}
                 </label>
-                <label className="text-sm font-medium">Priority
-                  <select className="mt-1 min-h-11 w-full rounded-xl border border-border bg-transparent px-3 py-2" value={taskForm.priority} onChange={(e) => setTaskForm({ ...taskForm, priority: e.target.value as TaskForm["priority"] })}>
-                    <option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option>
+                <label className="text-sm font-medium">
+                  Priority
+                  <select
+                    className="mt-1 min-h-11 w-full rounded-xl border border-border bg-transparent px-3 py-2"
+                    value={taskForm.priority}
+                    onChange={(e) =>
+                      setTaskForm({
+                        ...taskForm,
+                        priority: e.target.value as TaskForm["priority"],
+                      })
+                    }
+                  >
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
                   </select>
                 </label>
-                <div className="relative text-sm font-medium">Due time <span className="font-normal text-on-surface-variant">(optional)</span>
+                <div className="relative text-sm font-medium">
+                  Due time{" "}
+                  <span className="font-normal text-on-surface-variant">
+                    (optional)
+                  </span>
                   <div className="mt-1 flex gap-2">
-                    <button type="button" onClick={() => setDuePicker(duePicker === "date" ? null : "date")} className="flex min-h-11 min-w-0 flex-1 items-center justify-between rounded-xl border border-border bg-transparent px-3 text-left font-normal hover:bg-surface-variant focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent" aria-expanded={duePicker === "date"}>
-                      <span className={dueDate ? "text-ink" : "text-on-surface-variant"}>{dueDateLabel(dueDate)}</span><span className="ml-2 text-on-surface-variant">⌄</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDuePicker(duePicker === "date" ? null : "date")
+                      }
+                      className="flex min-h-11 min-w-0 flex-1 items-center justify-between rounded-xl border border-border bg-transparent px-3 text-left font-normal hover:bg-surface-variant focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                      aria-expanded={duePicker === "date"}
+                    >
+                      <span
+                        className={
+                          dueDate ? "text-ink" : "text-on-surface-variant"
+                        }
+                      >
+                        {dueDateLabel(dueDate)}
+                      </span>
+                      <span className="ml-2 text-on-surface-variant">⌄</span>
                     </button>
-                    <button type="button" onClick={() => setDuePicker(duePicker === "time" ? null : "time")} className="flex min-h-11 min-w-0 flex-1 items-center justify-between rounded-xl border border-border bg-transparent px-3 text-left font-normal hover:bg-surface-variant focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent" aria-expanded={duePicker === "time"}>
-                      <span className={dueTime ? "text-ink" : "text-on-surface-variant"}>{dueTimeLabel(dueTime)}</span><span className="ml-2 text-on-surface-variant">⌄</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDuePicker(duePicker === "time" ? null : "time")
+                      }
+                      className="flex min-h-11 min-w-0 flex-1 items-center justify-between rounded-xl border border-border bg-transparent px-3 text-left font-normal hover:bg-surface-variant focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                      aria-expanded={duePicker === "time"}
+                    >
+                      <span
+                        className={
+                          dueTime ? "text-ink" : "text-on-surface-variant"
+                        }
+                      >
+                        {dueTimeLabel(dueTime)}
+                      </span>
+                      <span className="ml-2 text-on-surface-variant">⌄</span>
                     </button>
                   </div>
-                  {duePicker === "date" && <div className="absolute z-20 mt-2 w-full rounded-xl border border-border bg-surface p-3 shadow-lg">
-                    <div className="grid grid-cols-2 gap-2">
-                      <button type="button" onClick={() => { updateDueAt(today, dueTime); setDuePicker(null); }} className="min-h-9 rounded-lg bg-surface-variant px-2 text-xs font-semibold hover:bg-border">Today</button>
-                      <button type="button" onClick={() => { updateDueAt(localDateValue(tomorrow), dueTime); setDuePicker(null); }} className="min-h-9 rounded-lg bg-surface-variant px-2 text-xs font-semibold hover:bg-border">Tomorrow</button>
+                  {duePicker === "date" && (
+                    <div className="absolute z-20 mt-2 w-full rounded-xl border border-border bg-surface p-3 shadow-lg">
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateDueAt(today, dueTime);
+                            setDuePicker(null);
+                          }}
+                          className="min-h-9 rounded-lg bg-surface-variant px-2 text-xs font-semibold hover:bg-border"
+                        >
+                          Today
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateDueAt(localDateValue(tomorrow), dueTime);
+                            setDuePicker(null);
+                          }}
+                          className="min-h-9 rounded-lg bg-surface-variant px-2 text-xs font-semibold hover:bg-border"
+                        >
+                          Tomorrow
+                        </button>
+                      </div>
+                      <label className="mt-3 block text-xs font-medium text-on-surface-variant">
+                        Choose another date
+                        <input
+                          type="date"
+                          min={today}
+                          value={dueDate}
+                          onChange={(event) => {
+                            updateDueAt(event.target.value, dueTime);
+                            setDuePicker(null);
+                          }}
+                          className="mt-1 block min-h-10 w-full rounded-lg border border-border bg-transparent px-2 text-sm text-ink"
+                        />
+                      </label>
                     </div>
-                    <label className="mt-3 block text-xs font-medium text-on-surface-variant">Choose another date<input type="date" min={today} value={dueDate} onChange={(event) => { updateDueAt(event.target.value, dueTime); setDuePicker(null); }} className="mt-1 block min-h-10 w-full rounded-lg border border-border bg-transparent px-2 text-sm text-ink" /></label>
-                  </div>}
-                  {duePicker === "time" && <div className="absolute right-0 z-20 mt-2 w-[min(100%,16rem)] rounded-xl border border-border bg-surface p-3 shadow-lg">
-                    <div className="grid grid-cols-3 gap-2">
-                      {["09:00", "12:00", "15:00", "17:00", "19:00"].map((time) => <button key={time} type="button" onClick={() => { updateDueAt(dueDate || today, time); setDuePicker(null); }} className="min-h-9 rounded-lg bg-surface-variant px-2 text-xs font-semibold hover:bg-border">{dueTimeLabel(time)}</button>)}
+                  )}
+                  {duePicker === "time" && (
+                    <div className="absolute right-0 z-20 mt-2 w-[min(100%,16rem)] rounded-xl border border-border bg-surface p-3 shadow-lg">
+                      <div className="grid grid-cols-3 gap-2">
+                        {["09:00", "12:00", "15:00", "17:00", "19:00"].map(
+                          (time) => (
+                            <button
+                              key={time}
+                              type="button"
+                              onClick={() => {
+                                updateDueAt(dueDate || today, time);
+                                setDuePicker(null);
+                              }}
+                              className="min-h-9 rounded-lg bg-surface-variant px-2 text-xs font-semibold hover:bg-border"
+                            >
+                              {dueTimeLabel(time)}
+                            </button>
+                          ),
+                        )}
+                      </div>
+                      <label className="mt-3 block text-xs font-medium text-on-surface-variant">
+                        Choose another time
+                        <input
+                          type="time"
+                          value={dueTime}
+                          onChange={(event) => {
+                            updateDueAt(dueDate || today, event.target.value);
+                            setDuePicker(null);
+                          }}
+                          className="mt-1 block min-h-10 w-full rounded-lg border border-border bg-transparent px-2 text-sm text-ink"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTaskForm({ ...taskForm, dueAt: "" });
+                          setDuePicker(null);
+                        }}
+                        className="mt-3 text-xs font-semibold text-accent hover:underline"
+                      >
+                        No deadline
+                      </button>
                     </div>
-                    <label className="mt-3 block text-xs font-medium text-on-surface-variant">Choose another time<input type="time" value={dueTime} onChange={(event) => { updateDueAt(dueDate || today, event.target.value); setDuePicker(null); }} className="mt-1 block min-h-10 w-full rounded-lg border border-border bg-transparent px-2 text-sm text-ink" /></label>
-                    <button type="button" onClick={() => { setTaskForm({ ...taskForm, dueAt: "" }); setDuePicker(null); }} className="mt-3 text-xs font-semibold text-accent hover:underline">No deadline</button>
-                  </div>}
+                  )}
                 </div>
 
                 <div className="space-y-2 sm:col-span-2">
-                  <label className="text-sm font-medium">Documents to collect</label>
+                  <label className="text-sm font-medium">
+                    Documents to collect
+                  </label>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {documentTypes.map((name) => <label key={name} className="flex min-h-10 items-center gap-2 rounded-lg border border-border px-2.5 text-sm text-on-surface-variant"><input className="accent-[#405f90]" type="checkbox" checked={taskForm.documents.includes(name)} onChange={(e) => setTaskForm({ ...taskForm, documents: e.target.checked ? [...taskForm.documents, name] : taskForm.documents.filter((item) => item !== name) })} />{name}</label>)}
+                    {documentTypes.map((name) => (
+                      <label
+                        key={name}
+                        className="flex min-h-10 items-center gap-2 rounded-lg border border-border px-2.5 text-sm text-on-surface-variant"
+                      >
+                        <input
+                          className="accent-[#405f90]"
+                          type="checkbox"
+                          checked={taskForm.documents.includes(name)}
+                          onChange={(e) =>
+                            setTaskForm({
+                              ...taskForm,
+                              documents: e.target.checked
+                                ? [...taskForm.documents, name]
+                                : taskForm.documents.filter(
+                                    (item) => item !== name,
+                                  ),
+                            })
+                          }
+                        />
+                        {name}
+                      </label>
+                    ))}
                   </div>
-                  {selectedDocuments.length === 0 && <p className="text-xs text-amber-700">Choose at least one document to collect before assigning this task.</p>}
-                  <input className="min-h-11 w-full rounded-xl border border-border bg-transparent px-3 py-2 text-sm" placeholder="Other document (optional)" value={taskForm.customDocument} onChange={(e) => setTaskForm({ ...taskForm, customDocument: e.target.value })} />
+                  {selectedDocuments.length === 0 && (
+                    <p className="text-xs text-amber-700">
+                      Choose at least one document to collect before assigning
+                      this task.
+                    </p>
+                  )}
+                  <input
+                    className="min-h-11 w-full rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
+                    placeholder="Other document (optional)"
+                    value={taskForm.customDocument}
+                    onChange={(e) =>
+                      setTaskForm({
+                        ...taskForm,
+                        customDocument: e.target.value,
+                      })
+                    }
+                  />
                 </div>
 
                 <div className="space-y-2 sm:col-span-2">
-                  <label className="text-sm font-medium">Attachments <span className="font-normal text-on-surface-variant">(PDF, DOC, DOCX; max 25 MB each)</span></label>
-                  <label className="block rounded-xl border border-dashed border-border bg-surface-variant/40 px-3 py-2 text-sm text-on-surface-variant">Choose supporting files<input className="mt-1 block w-full text-sm" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple onChange={(e) => setTaskAttachments(Array.from(e.target.files ?? []))} /></label>
-                  {editingTask && <div className="rounded-xl border border-border bg-surface-variant/40 p-3"><p className="text-sm font-medium">Attached files</p>{attachmentsLoading ? <p className="mt-1 text-xs text-on-surface-variant">Loading attached files…</p> : existingTaskAttachments.length === 0 ? <p className="mt-1 text-xs text-on-surface-variant">No files were attached to this task.</p> : <ul className="mt-2 space-y-1">{existingTaskAttachments.map((attachment) => <li key={attachment.id} className="flex items-center justify-between gap-2"><button type="button" onClick={() => openTaskAttachment(editingTask.id, attachment.id)} className="min-w-0 text-left text-xs font-medium text-accent hover:underline">{attachment.name} <span className="font-normal text-on-surface-variant">({Math.ceil(attachment.sizeBytes / 1024)} KB)</span></button><button type="button" aria-label={`Delete ${attachment.name}`} title="Delete attachment" disabled={deletingAttachmentId === attachment.id} onClick={() => deleteTaskAttachment(editingTask.id, attachment)} className="shrink-0 rounded p-1 text-red-700 hover:bg-red-50 disabled:opacity-50"><DeleteOutlineIcon fontSize="small" /></button></li>)}</ul>}</div>}
-                  {taskAttachments.length > 0 && <ul className="space-y-1.5">{taskAttachments.map((file) => <li key={`${file.name}-${file.lastModified}`} className="flex items-center justify-between gap-3 rounded-xl border border-border px-3 py-2 text-sm"><span className="min-w-0 truncate">{file.name} <span className="text-xs text-on-surface-variant">({(file.size / (1024 * 1024)).toFixed(1)} MB)</span></span><button type="button" onClick={() => removeSelectedAttachment(file)} className="shrink-0 text-xs font-semibold text-red-700 hover:underline">Remove</button></li>)}</ul>}
-                  {taskAttachments.length > 5 && <p className="text-xs text-red-700">A task can include up to 5 supporting files.</p>}
-                  {invalidTaskAttachment && <p className="text-xs text-red-700">{invalidTaskAttachment.name} must be a PDF, DOC, or DOCX file no larger than 25 MB.</p>}
+                  <label className="text-sm font-medium">
+                    Attachments{" "}
+                    <span className="font-normal text-on-surface-variant">
+                      (PDF, DOC, DOCX; max 25 MB each)
+                    </span>
+                  </label>
+                  <label className="block rounded-xl border border-dashed border-border bg-surface-variant/40 px-3 py-2 text-sm text-on-surface-variant">
+                    Choose supporting files
+                    <input
+                      className="mt-1 block w-full text-sm"
+                      type="file"
+                      accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      multiple
+                      onChange={(e) =>
+                        setTaskAttachments(Array.from(e.target.files ?? []))
+                      }
+                    />
+                  </label>
+                  {editingTask && (
+                    <div className="rounded-xl border border-border bg-surface-variant/40 p-3">
+                      <p className="text-sm font-medium">Attached files</p>
+                      {attachmentsLoading ? (
+                        <p className="mt-1 text-xs text-on-surface-variant">
+                          Loading attached files…
+                        </p>
+                      ) : existingTaskAttachments.length === 0 ? (
+                        <p className="mt-1 text-xs text-on-surface-variant">
+                          No files were attached to this task.
+                        </p>
+                      ) : (
+                        <ul className="mt-2 space-y-1">
+                          {existingTaskAttachments.map((attachment) => (
+                            <li
+                              key={attachment.id}
+                              className="flex items-center justify-between gap-2"
+                            >
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openTaskAttachment(
+                                    editingTask.id,
+                                    attachment.id,
+                                  )
+                                }
+                                className="min-w-0 text-left text-xs font-medium text-accent hover:underline"
+                              >
+                                {attachment.name}{" "}
+                                <span className="font-normal text-on-surface-variant">
+                                  ({Math.ceil(attachment.sizeBytes / 1024)} KB)
+                                </span>
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={`Delete ${attachment.name}`}
+                                title="Delete attachment"
+                                disabled={
+                                  deletingAttachmentId === attachment.id
+                                }
+                                onClick={() =>
+                                  deleteTaskAttachment(
+                                    editingTask.id,
+                                    attachment,
+                                  )
+                                }
+                                className="shrink-0 rounded p-1 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                              >
+                                <DeleteOutlineIcon fontSize="small" />
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                  {taskAttachments.length > 0 && (
+                    <ul className="space-y-1.5">
+                      {taskAttachments.map((file) => (
+                        <li
+                          key={`${file.name}-${file.lastModified}`}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-border px-3 py-2 text-sm"
+                        >
+                          <span className="min-w-0 truncate">
+                            {file.name}{" "}
+                            <span className="text-xs text-on-surface-variant">
+                              ({(file.size / (1024 * 1024)).toFixed(1)} MB)
+                            </span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeSelectedAttachment(file)}
+                            className="shrink-0 text-xs font-semibold text-red-700 hover:underline"
+                          >
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {taskAttachments.length > 5 && (
+                    <p className="text-xs text-red-700">
+                      A task can include up to 5 supporting files.
+                    </p>
+                  )}
+                  {invalidTaskAttachment && (
+                    <p className="text-xs text-red-700">
+                      {invalidTaskAttachment.name} must be a PDF, DOC, or DOCX
+                      file no larger than 25 MB.
+                    </p>
+                  )}
                 </div>
 
-                <label className="space-y-1 text-sm font-medium sm:col-span-2">Notes <span className="font-normal text-on-surface-variant">(optional)</span>
-                  <textarea className="block min-h-20 w-full rounded-xl border border-border bg-transparent px-3 py-2" value={taskForm.notes} onChange={(e) => setTaskForm({ ...taskForm, notes: e.target.value })} />
+                <label className="space-y-1 text-sm font-medium sm:col-span-2">
+                  Notes{" "}
+                  <span className="font-normal text-on-surface-variant">
+                    (optional)
+                  </span>
+                  <textarea
+                    className="block min-h-20 w-full rounded-xl border border-border bg-transparent px-3 py-2"
+                    value={taskForm.notes}
+                    onChange={(e) =>
+                      setTaskForm({ ...taskForm, notes: e.target.value })
+                    }
+                  />
                 </label>
 
                 <div className="space-y-2 sm:col-span-2">
-                  <AddressPicker label="Client location" value={taskForm.destinationLat != null && taskForm.destinationLon != null ? { address: taskForm.clientAddress, lat: taskForm.destinationLat, lon: taskForm.destinationLon } : null} onChange={(pin: AddressPin) => setTaskForm({ ...taskForm, clientAddress: pin.address, destinationLat: pin.lat, destinationLon: pin.lon })} onReset={() => setTaskForm({ ...taskForm, clientAddress: "", destinationLat: undefined, destinationLon: undefined })} />
+                  <AddressPicker
+                    label="Client location"
+                    value={
+                      taskForm.destinationLat != null &&
+                      taskForm.destinationLon != null
+                        ? {
+                            address: taskForm.clientAddress,
+                            lat: taskForm.destinationLat,
+                            lon: taskForm.destinationLon,
+                          }
+                        : null
+                    }
+                    onChange={(pin: AddressPin) =>
+                      setTaskForm({
+                        ...taskForm,
+                        clientAddress: pin.address,
+                        destinationLat: pin.lat,
+                        destinationLon: pin.lon,
+                      })
+                    }
+                    onReset={() =>
+                      setTaskForm({
+                        ...taskForm,
+                        clientAddress: "",
+                        destinationLat: undefined,
+                        destinationLon: undefined,
+                      })
+                    }
+                  />
                 </div>
               </div>
             </div>
-            {taskError && <p className="mx-4 mt-2 text-sm text-red-700 sm:mx-5">{taskError}</p>}
-            <div className="flex justify-end gap-2 border-t border-border bg-surface px-4 py-3 sm:px-5">
-              <button type="button" onClick={closeTaskForm} className="min-h-10 rounded-xl border border-border px-4 text-sm font-medium text-on-surface-variant hover:bg-surface-variant">Cancel</button>
-              <button disabled={formBusy || !isTaskReadyToAssign} className="min-h-10 rounded-xl bg-accent px-4 text-sm font-semibold text-white disabled:opacity-50">
-                {formBusy ? "Saving…" : editingTask ? "Save task" : "Assign task"}
+            {taskError && (
+              <p className="mx-4 mt-2 text-sm text-red-700 sm:mx-5">
+                {taskError}
+              </p>
+            )}
+            <div className="flex justify-end gap-2 border-t border-border bg-surface px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 sm:px-5 sm:py-3">
+              <button
+                type="button"
+                onClick={closeTaskForm}
+                className="min-h-10 rounded-xl border border-border px-4 text-sm font-medium text-on-surface-variant hover:bg-surface-variant"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={formBusy || !isTaskReadyToAssign}
+                className="min-h-10 rounded-xl bg-accent px-4 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {formBusy
+                  ? "Saving…"
+                  : editingTask
+                    ? "Save task"
+                    : "Assign task"}
               </button>
             </div>
           </form>
@@ -915,7 +1359,9 @@ function Metric({
         {label}
       </div> */}
       <div className="mt-1 flex items-center gap-2">
-        <span className="text-[12px] font-medium text-on-surface-variant">{label}</span>
+        <span className="text-[12px] font-medium text-on-surface-variant">
+          {label}
+        </span>
         <span className="text-lg font-semibold">{value}</span>
         <span className={`h-2 w-2 shrink-0 rounded-full ${tone}`} />
       </div>
