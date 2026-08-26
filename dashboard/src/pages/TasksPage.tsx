@@ -369,9 +369,9 @@ export default function TasksPage() {
                   </Select>
                 </FormControl>
                 <FormControl size="small" fullWidth>
-                  <InputLabel>Created by</InputLabel>
+                  <InputLabel>Assigned by</InputLabel>
                   <Select
-                    label="Created by"
+                    label="Assigned by"
                     value={operatorId}
                     onChange={(event) => {
                       setOperatorId(event.target.value);
@@ -711,9 +711,20 @@ function TaskRow({
           <Chip size="small" label={statusLabel[task.status]} />
         </Stack>
       </Stack>
-      <Typography variant="caption" color="text.secondary" mt={1} noWrap>
-        Created by {task.createdByOperatorName ?? "Unattributed"}
-      </Typography>
+      <Chip
+        size="small"
+        label={`Assigned by · ${task.createdByOperatorName ?? "Unattributed"}`}
+        sx={{
+          mt: 1,
+          alignSelf: "flex-start",
+          maxWidth: "100%",
+          bgcolor: "#eef6ff",
+          border: "1px solid #c8def2",
+          color: "#174d79",
+          fontWeight: 750,
+          "& .MuiChip-label": { overflow: "hidden", textOverflow: "ellipsis" },
+        }}
+      />
       <Stack
         direction={{ xs: "column", sm: "row" }}
         gap={1.25}

@@ -4,9 +4,13 @@ import { useDispatcherSession } from "../lib/dispatcherSession";
 
 function greetingForCurrentTime() {
   const hour = new Date().getHours();
+  // Midnight through early morning is still part of the night shift. Keeping
+  // that boundary explicit avoids greeting a dispatcher with “Good morning”
+  // immediately after midnight.
+  if (hour < 5) return "Good night";
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
-  if (hour < 21) return "Good evening";
+  if (hour < 20) return "Good evening";
   return "Good night";
 }
 
