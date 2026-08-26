@@ -693,7 +693,17 @@ function TaskRow({
           <Typography fontWeight={800} noWrap>
             {task.clientName}
           </Typography>
-          <Typography variant="body2" color="text.secondary" noWrap>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{
+              display: "-webkit-box",
+              overflow: "hidden",
+              overflowWrap: "anywhere",
+              WebkitBoxOrient: "vertical",
+              WebkitLineClamp: { xs: 2, sm: 1 },
+            }}
+          >
             {task.clientAddress}
           </Typography>
         </div>
