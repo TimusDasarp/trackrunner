@@ -56,6 +56,7 @@ function AppShellContent() {
               alignItems: "center",
               gap: 1.25,
               mr: { md: 2 },
+              width: { xs: "100%", sm: "auto" },
               minWidth: 0,
             }}
           >
@@ -116,13 +117,17 @@ function AppShellContent() {
               alignItems: "center",
               ml: "auto",
               order: { xs: 2, sm: 3 },
+              width: { xs: "100%", sm: "auto" },
+              justifyContent: "flex-end",
+              gap: 0.25,
+              minWidth: 0,
             }}
           >
             {selectedOperator && <Button
               onClick={openSelector}
               size="small"
               color="inherit"
-              sx={{ minHeight: 32, mr: 0.25, px: 1.1, borderRadius: 99, bgcolor: "#e6f4ef", color: "#1f6b50", fontWeight: 750, textTransform: "none", whiteSpace: "nowrap" }}
+              sx={{ minHeight: 32, minWidth: 0, mr: 0, px: 1.1, borderRadius: 99, bgcolor: "#e6f4ef", color: "#1f6b50", fontWeight: 750, textTransform: "none", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
             >
               {selectedOperator.displayName}'s workspace
             </Button>}
@@ -130,7 +135,7 @@ function AppShellContent() {
               onClick={signOut}
               size="small"
               color="inherit"
-              sx={{ minHeight: 36 }}
+              sx={{ minHeight: 36, flexShrink: 0 }}
             >
               Sign out
             </Button>
