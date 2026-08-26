@@ -20,6 +20,8 @@ export type DispatcherTask = {
   completedAt?: string | null;
   destinationLat?: number | null;
   destinationLon?: number | null;
+  createdByOperatorId?: string | null;
+  createdByOperatorName?: string | null;
   documents?: TaskDocument[];
 };
 

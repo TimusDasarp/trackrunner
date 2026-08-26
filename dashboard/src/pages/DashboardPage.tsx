@@ -9,6 +9,7 @@ import { api, getToken } from "../lib/auth";
 import { apiUrl } from "../lib/config";
 import { getSocket } from "../lib/socket";
 import { getRunnerStatus, type RunnerState } from "../lib/types";
+import { useDispatcherSession } from "../lib/dispatcherSession";
 import { Card } from "@material-tailwind/react";
 import { Alert, Snackbar } from "@mui/material";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
@@ -193,6 +194,7 @@ async function createTaskWithAttachments(
 
 export default function DashboardPage() {
   const { runners, refresh } = useRunners();
+  const { selectedOperator } = useDispatcherSession();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isMapOpen, setIsMapOpen] = useState(() => window.innerWidth >= 1024);
   const [trail, setTrail] = useState<Array<[number, number]>>([]);
@@ -487,6 +489,8 @@ export default function DashboardPage() {
   async function saveTask(event: React.FormEvent) {
     event.preventDefault();
     if (!taskRunner) return;
+    if (!editingTask && !selectedOperator)
+      return setTaskError("Choose a dispatcher workspace before assigning a task.");
     const documents = [
       ...taskForm.documents,
       taskForm.customDocument.trim(),
@@ -519,6 +523,7 @@ export default function DashboardPage() {
           ? new Date(taskForm.dueAt).toISOString()
           : undefined,
         documents,
+        ...(editingTask ? {} : { operatorId: selectedOperator!.id }),
       };
       const result = editingTask
         ? await api<{ task: DashboardTask }>(`/api/tasks/${editingTask.id}`, {
@@ -715,15 +720,20 @@ export default function DashboardPage() {
             </div>
             <button
               type="button"
-              onClick={() => setIsMapOpen((open) => !open)}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setIsMapOpen((open) => !open);
+              }}
               className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-surface-variant"
               aria-expanded={isMapOpen}
+              aria-controls="dashboard-runner-map"
             >
               {isMapOpen ? "Hide map" : "View map"}
             </button>
           </div>
           {isMapOpen && (
-            <div className="border-t border-border p-3 lg:min-h-0 lg:flex-1">
+            <div id="dashboard-runner-map" className="border-t border-border p-3 lg:min-h-0 lg:flex-1" key={`runner-map-${selectedId ?? "all"}`}>
               <RunnerMap
                 runners={runners}
                 selectedId={selectedId}

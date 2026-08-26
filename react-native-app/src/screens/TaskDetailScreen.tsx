@@ -1,10 +1,22 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Linking, Platform, ScrollView, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Linking, Platform, ScrollView, Text, View } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { ActivityIndicator, Button, Card, Chip, IconButton } from 'react-native-paper';
+import Animated, { FadeInDown, ReduceMotion } from 'react-native-reanimated';
+import { ActivityIndicator, Button, Card, Chip, IconButton, Modal, Portal, RadioButton, Snackbar, TextInput, TouchableRipple } from 'react-native-paper';
 import { useTasks } from '../hooks/useTasks';
 import { api } from '../services/api';
-import type { RunnerTask, TaskAttachment } from '../types';
+import type { IncompleteReason, RunnerTask, TaskAttachment } from '../types';
+
+const incompleteReasonOptions: Array<{ value: IncompleteReason; label: string }> = [
+  { value: 'client_unavailable', label: 'Client unavailable' },
+  { value: 'client_requested_reschedule', label: 'Client requested reschedule' },
+  { value: 'address_issue', label: 'Address issue' },
+  { value: 'access_denied', label: 'Access denied' },
+  { value: 'runner_issue', label: 'Runner issue' },
+  { value: 'vehicle_or_device_issue', label: 'Vehicle or device issue' },
+  { value: 'safety_issue', label: 'Safety issue' },
+  { value: 'other', label: 'Other' },
+];
 
 export default function TaskDetailScreen() {
   const navigation = useNavigation<any>();
@@ -14,6 +26,13 @@ export default function TaskDetailScreen() {
   const [attachmentsLoading, setAttachmentsLoading] = useState(true);
   const [attachmentsError, setAttachmentsError] = useState<string | null>(null);
   const [openingAttachmentId, setOpeningAttachmentId] = useState<string | null>(null);
+  const [incompleteSheetVisible, setIncompleteSheetVisible] = useState(false);
+  const [incompleteReason, setIncompleteReason] = useState<IncompleteReason | null>(null);
+  const [incompleteNote, setIncompleteNote] = useState('');
+  const [submittingIncomplete, setSubmittingIncomplete] = useState(false);
+  const [acknowledgementUndoVisible, setAcknowledgementUndoVisible] = useState(false);
+  const [statusBeforeAcknowledgement, setStatusBeforeAcknowledgement] = useState<RunnerTask['status'] | null>(null);
+  const incompleteReasonsScrollRef = useRef<ScrollView>(null);
   const { update } = useTasks();
   const priority = priorityMeta(task.priority);
 
@@ -31,13 +50,60 @@ export default function TaskDetailScreen() {
 
   useEffect(() => { void loadAttachments(); }, [loadAttachments]);
 
-  async function save(status = task.status, documents = task.documents) {
+  useEffect(() => {
+    if (incompleteReason !== 'other') return;
+    const scrollTimer = setTimeout(() => incompleteReasonsScrollRef.current?.scrollToEnd({ animated: true }), 180);
+    return () => clearTimeout(scrollTimer);
+  }, [incompleteReason]);
+
+  async function save(status = task.status, documents = task.documents, incomplete?: { reason: IncompleteReason; note?: string }) {
     try {
-      const updated = await update(task, status, documents);
+      const updated = await update(task, status, documents, incomplete);
       setTask(updated);
+      return true;
     } catch (error: any) {
       Alert.alert('Could not update task', error?.message || 'Please try again.');
+      return false;
     }
+  }
+
+  async function submitIncompleteReason() {
+    if (!incompleteReason) {
+      Alert.alert('Select a reason', 'Choose the reason this task could not be completed.');
+      return;
+    }
+    if (incompleteReason === 'other' && !incompleteNote.trim()) {
+      Alert.alert('Add a note', 'A short note is required when you select Other.');
+      return;
+    }
+    setSubmittingIncomplete(true);
+    const saved = await save('unable_to_complete', task.documents, { reason: incompleteReason, note: incompleteNote.trim() || undefined });
+    setSubmittingIncomplete(false);
+    if (saved) setIncompleteSheetVisible(false);
+  }
+
+  async function advanceTask() {
+    const previousStatus = task.status;
+    const saved = await save(nextStatus);
+    if (saved && nextStatus === 'acknowledged') {
+      setStatusBeforeAcknowledgement(previousStatus);
+      setAcknowledgementUndoVisible(true);
+    }
+  }
+
+  async function undoAcknowledgement() {
+    if (!statusBeforeAcknowledgement) return;
+    const saved = await save(statusBeforeAcknowledgement);
+    if (saved) {
+      setAcknowledgementUndoVisible(false);
+      setStatusBeforeAcknowledgement(null);
+    }
+  }
+
+  function openIncompleteSheet() {
+    setIncompleteReason(null);
+    setIncompleteNote('');
+    setIncompleteSheetVisible(true);
   }
 
   async function navigate() {
@@ -107,10 +173,52 @@ export default function TaskDetailScreen() {
         </Card.Content>
       </Card>
 
-      {canUpdateStatus && <View style={{ gap: 10 }}>
-        <Button mode="contained" icon="arrow-right" contentStyle={{ height: 52 }} onPress={() => save(nextStatus)}>{nextAction}</Button>
-        <Button mode="outlined" icon="close-octagon" textColor="#B91C1C" contentStyle={{ height: 48 }} onPress={() => save('unable_to_complete')}>Unable to complete</Button>
+      {canUpdateStatus && <View style={{ gap: 14 }}>
+        <Button mode="contained" icon="arrow-right" contentStyle={{ height: 52 }} onPress={advanceTask}>{nextAction}</Button>
+        <View style={{ gap: 8, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#E2E8F0' }}>
+          <Text className="text-sm font-semibold text-slate-600">Need to stop this task?</Text>
+          <Button mode="outlined" icon="close-octagon" textColor="#B91C1C" contentStyle={{ height: 48 }} onPress={openIncompleteSheet}>Unable to complete</Button>
+        </View>
       </View>}
+      <Portal>
+        <Modal visible={incompleteSheetVisible} onDismiss={() => !submittingIncomplete && setIncompleteSheetVisible(false)} contentContainerStyle={{ margin: 16, maxHeight: '92%' }}>
+          <Animated.View entering={FadeInDown.duration(220).reduceMotion(ReduceMotion.System)} style={{ backgroundColor: 'white', borderRadius: 24, overflow: 'hidden', elevation: 8, maxHeight: '100%' }}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+              <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#E2E8F0', gap: 8 }}>
+                <View style={{ alignSelf: 'center', width: 32, height: 4, borderRadius: 2, backgroundColor: '#CBD5E1' }} />
+                <Text className="text-xl font-bold text-slate-900">Reason for Task Cancellation</Text>
+              </View>
+              <ScrollView ref={incompleteReasonsScrollRef} style={{ maxHeight: '55%' }} contentContainerStyle={{ padding: 12, gap: 10 }} keyboardShouldPersistTaps="handled">
+                <RadioButton.Group value={incompleteReason ?? ''} onValueChange={(value) => setIncompleteReason(value as IncompleteReason)}>
+                  <View style={{ gap: 6 }}>
+                    {incompleteReasonOptions.map((option) => {
+                      const selected = incompleteReason === option.value;
+                      const isSafetyIssue = option.value === 'safety_issue';
+                      return <TouchableRipple key={option.value} onPress={() => setIncompleteReason(option.value)} disabled={submittingIncomplete} borderless style={{ borderRadius: 14 }}>
+                        <View style={{ minHeight: 52, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: selected ? (isSafetyIssue ? '#DC2626' : '#2563EB') : '#E2E8F0', backgroundColor: selected ? (isSafetyIssue ? '#FEF2F2' : '#EFF6FF') : '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <RadioButton value={option.value} status={selected ? 'checked' : 'unchecked'} color={isSafetyIssue ? '#DC2626' : '#2563EB'} disabled={submittingIncomplete} />
+                          <Text className="flex-1 text-base font-semibold text-slate-900">{option.label}</Text>
+                        </View>
+                      </TouchableRipple>;
+                    })}
+                  </View>
+                </RadioButton.Group>
+                {incompleteReason === 'other' && <Animated.View entering={FadeInDown.duration(180).reduceMotion(ReduceMotion.System)} style={{ gap: 8, borderWidth: 1, borderColor: '#FCA5A5', borderRadius: 14, backgroundColor: '#FEF2F2', padding: 10 }}>
+                  <Text className="text-sm font-semibold text-red-800">Add a note to cancel this task</Text>
+                  <TextInput mode="outlined" label="Required note" value={incompleteNote} onChangeText={setIncompleteNote} multiline numberOfLines={3} maxLength={1000} editable={!submittingIncomplete} placeholder="Tell dispatch what happened" outlineColor="#FCA5A5" activeOutlineColor="#DC2626" />
+                </Animated.View>}
+              </ScrollView>
+              <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12, borderTopWidth: 1, borderTopColor: '#E2E8F0', gap: 8 }}>
+                <Button mode="outlined" compact contentStyle={{ height: 46 }} onPress={() => setIncompleteSheetVisible(false)} disabled={submittingIncomplete} style={{ flex: 1 }}>Keep task open</Button>
+                <Button mode="contained" buttonColor="#B91C1C" compact icon="close-octagon" contentStyle={{ height: 46 }} loading={submittingIncomplete} disabled={submittingIncomplete || !incompleteReason || (incompleteReason === 'other' && !incompleteNote.trim())} onPress={submitIncompleteReason} style={{ flex: 1 }}>Cancel task</Button>
+              </View>
+            </KeyboardAvoidingView>
+          </Animated.View>
+        </Modal>
+      </Portal>
+      <Snackbar visible={acknowledgementUndoVisible} duration={6000} onDismiss={() => setAcknowledgementUndoVisible(false)} action={{ label: 'Undo', onPress: undoAcknowledgement }}>
+        Task acknowledged
+      </Snackbar>
     </ScrollView>
   );
 }

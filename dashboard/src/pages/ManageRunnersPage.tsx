@@ -16,11 +16,13 @@ import {
 } from "@mui/material";
 import { api } from "../lib/auth";
 import { getRunnerStatus, type RunnerState } from "../lib/types";
+import { type DispatchOperator, useDispatcherSession } from "../lib/dispatcherSession";
 
 type Form = { email: string; password: string; displayName: string };
 const empty: Form = { email: "", password: "", displayName: "" };
 
 export default function ManageRunnersPage() {
+  const { operators, refreshOperators } = useDispatcherSession();
   const [runners, setRunners] = useState<Record<string, RunnerState>>({});
   const [target, setTarget] = useState<RunnerState | null | undefined>(
     undefined,
@@ -30,6 +32,9 @@ export default function ManageRunnersPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [operatorTarget, setOperatorTarget] = useState<DispatchOperator | null | undefined>(undefined);
+  const [operatorName, setOperatorName] = useState("");
+  const [operatorDeleteTarget, setOperatorDeleteTarget] = useState<DispatchOperator | null>(null);
   const [tab, setTab] = useState(0);
   const refresh = async () => {
     try {
@@ -68,6 +73,35 @@ export default function ManageRunnersPage() {
       password: "",
     });
     setError(null);
+  }
+  function openOperatorForm(operator: DispatchOperator | null) {
+    setOperatorTarget(operator);
+    setOperatorName(operator?.displayName ?? "");
+    setError(null);
+  }
+  async function saveOperator(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      if (operatorTarget) await api(`/api/dispatch-operators/${operatorTarget.id}`, { method: "PATCH", body: JSON.stringify({ displayName: operatorName }) });
+      else await api("/api/dispatch-operators", { method: "POST", body: JSON.stringify({ displayName: operatorName }) });
+      await refreshOperators();
+      setOperatorTarget(undefined);
+      setNotice(operatorTarget ? "Dispatcher name updated" : "Dispatcher added");
+    } catch (err: any) { setError(err.message ?? "Could not save dispatcher"); }
+    finally { setBusy(false); }
+  }
+  async function deleteOperator() {
+    if (!operatorDeleteTarget) return;
+    setBusy(true);
+    try {
+      await api(`/api/dispatch-operators/${operatorDeleteTarget.id}`, { method: "DELETE" });
+      await refreshOperators();
+      setOperatorDeleteTarget(null);
+      setNotice("Dispatcher removed from future task assignments");
+    } catch (err: any) { setError(err.message ?? "Could not remove dispatcher"); }
+    finally { setBusy(false); }
   }
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -146,6 +180,15 @@ export default function ManageRunnersPage() {
           Add runner
         </Button>
       </Stack>
+      <Paper elevation={0} sx={{ border: "1px solid #e3e1e9", p: { xs: 1.5, sm: 2 }, mb: 3 }}>
+        <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} gap={1.5} mb={1.5}>
+          <div><Typography fontWeight={800}>Dispatch team</Typography><Typography variant="body2" color="text.secondary">Choose and maintain the names that appear on task assignments.</Typography></div>
+          <Button variant="outlined" onClick={() => openOperatorForm(null)} sx={{ borderRadius: 99, alignSelf: { xs: "stretch", sm: "auto" } }}>Add dispatcher</Button>
+        </Stack>
+        <Stack direction="row" flexWrap="wrap" gap={1}>
+          {operators.map((operator) => <Paper key={operator.id} variant="outlined" sx={{ px: 1.25, py: 0.75, display: "flex", alignItems: "center", gap: 0.5, borderRadius: 2 }}><Typography variant="body2" fontWeight={700}>{operator.displayName}</Typography><Button size="small" onClick={() => openOperatorForm(operator)}>Edit</Button><Button size="small" color="error" onClick={() => setOperatorDeleteTarget(operator)}>Delete</Button></Paper>)}
+        </Stack>
+      </Paper>
       <Paper
         elevation={0}
         sx={{ border: "1px solid #e3e1e9", overflow: "hidden" }}
@@ -310,6 +353,18 @@ export default function ManageRunnersPage() {
             </Button>
           </DialogActions>
         </form>
+      </Dialog>
+      <Dialog open={operatorTarget !== undefined} onClose={() => setOperatorTarget(undefined)} fullWidth maxWidth="xs">
+        <form onSubmit={saveOperator}>
+          <DialogTitle>{operatorTarget ? "Edit dispatcher" : "Add dispatcher"}</DialogTitle>
+          <DialogContent><TextField autoFocus fullWidth required label="Dispatcher name" value={operatorName} onChange={(event) => setOperatorName(event.target.value)} inputProps={{ minLength: 2, maxLength: 80 }} sx={{ mt: 1 }} /></DialogContent>
+          <DialogActions sx={{ p: 2 }}><Button onClick={() => setOperatorTarget(undefined)}>Cancel</Button><Button type="submit" variant="contained" disabled={busy}>{busy ? "Saving…" : "Save"}</Button></DialogActions>
+        </form>
+      </Dialog>
+      <Dialog open={Boolean(operatorDeleteTarget)} onClose={() => setOperatorDeleteTarget(null)} fullWidth maxWidth="xs">
+        <DialogTitle>Remove dispatcher?</DialogTitle>
+        <DialogContent><Typography>{operatorDeleteTarget?.displayName} will no longer be available for future task assignments. Existing task history will be retained.</Typography></DialogContent>
+        <DialogActions sx={{ p: 2 }}><Button onClick={() => setOperatorDeleteTarget(null)}>Cancel</Button><Button color="error" variant="contained" onClick={deleteOperator} disabled={busy}>Remove</Button></DialogActions>
       </Dialog>
       <Dialog
         open={Boolean(archiveTarget)}

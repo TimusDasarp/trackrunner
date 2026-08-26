@@ -46,6 +46,15 @@ export interface TrackingState {
 }
 
 export type TaskStatus = 'sent' | 'acknowledged' | 'in_progress' | 'completed' | 'unable_to_complete';
+export type IncompleteReason =
+  | 'client_unavailable'
+  | 'client_requested_reschedule'
+  | 'address_issue'
+  | 'access_denied'
+  | 'runner_issue'
+  | 'vehicle_or_device_issue'
+  | 'safety_issue'
+  | 'other';
 export interface RunnerTaskDocument { id: string; name: string; collected: boolean; collectedAt?: string | null; }
 export interface TaskAttachment {
   id: string;
@@ -56,5 +65,5 @@ export interface TaskAttachment {
 }
 export interface RunnerTask {
   id: string; runnerId: string; clientName: string; clientAddress: string; clientPhone: string;
-  notes?: string | null; destinationLat?: number | null; destinationLon?: number | null; priority?: 'normal' | 'high' | 'urgent' | 'low'; status: TaskStatus; createdAt: string; documents: RunnerTaskDocument[];
+  notes?: string | null; destinationLat?: number | null; destinationLon?: number | null; priority?: 'normal' | 'high' | 'urgent' | 'low'; status: TaskStatus; createdAt: string; incompleteReason?: IncompleteReason | null; incompleteNote?: string | null; documents: RunnerTaskDocument[];
 }

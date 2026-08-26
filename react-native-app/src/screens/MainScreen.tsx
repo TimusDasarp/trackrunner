@@ -5,10 +5,11 @@ import {
   Alert,
   Linking,
   Platform,
+  Pressable,
   ScrollView,
   RefreshControl,
 } from 'react-native';
-import { ActivityIndicator, Button, Card, Chip, IconButton } from 'react-native-paper';
+import { ActivityIndicator, Card, Chip, IconButton } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../hooks/useAuth';
 import { useTracking } from '../hooks/useTracking';
@@ -36,6 +37,11 @@ export default function MainScreen() {
     const rank = (priority?: RunnerTask['priority']) => priority === 'urgent' ? 0 : priority === 'high' ? 1 : 2;
     return rank(a.priority) - rank(b.priority);
   });
+  const locationIndicator = isTracking
+    ? { color: '#16A34A', label: 'Location always allowed' }
+    : permissionState === 'foreground_only'
+      ? { color: '#D97706', label: 'Location allowed while the app is open' }
+      : { color: '#64748B', label: 'Location offline' };
 
   async function handleLogout() {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
@@ -112,36 +118,34 @@ export default function MainScreen() {
           <IconButton icon="logout" mode="contained" size={24} onPress={handleLogout} accessibilityLabel="Logout" />
         </View>
 
-        <Card mode="contained" style={{ marginBottom: 28 }}>
-          <Card.Content style={{ gap: 20 }}>
-            <View className="flex-row items-center gap-4">
-              <View className="w-16 h-16 rounded-full bg-blue-100 items-center justify-center">
-                <IconButton icon="run-fast" iconColor="#2563EB" size={32} />
+        <Card mode="contained" style={{ marginBottom: 20 }}>
+          <Card.Content style={{ gap: 12, paddingVertical: 14 }}>
+            <View className="flex-row items-center gap-3">
+              <View className="w-12 h-12 rounded-full bg-blue-100 items-center justify-center">
+                <IconButton icon="run-fast" iconColor="#2563EB" size={24} />
               </View>
               <View className="flex-1">
-                <Text className="text-base text-slate-500">Welcome back</Text>
-                <Text numberOfLines={1} className="text-2xl font-bold text-slate-900 mt-1">
-                  {user?.displayName || user?.email || 'Runner'}
-                </Text>
+                <Text className="text-sm text-slate-500">Welcome back</Text>
+                <View className="flex-row items-center gap-2">
+                  <Pressable onPress={!isTracking ? handleEnableBackgroundTracking : undefined} accessibilityRole={!isTracking ? 'button' : 'image'} accessibilityLabel={isTracking ? locationIndicator.label : `${locationIndicator.label}. Tap to enable background location.`} hitSlop={10}>
+                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: locationIndicator.color }} />
+                  </Pressable>
+                  <Text numberOfLines={1} className="flex-1 text-xl font-bold text-slate-900">
+                    {user?.displayName || user?.email || 'Runner'}
+                  </Text>
+                </View>
               </View>
             </View>
 
             <View className="flex-row gap-2">
               <Card style={{ flex: 1 }} mode="contained">
-                <Card.Content style={{ gap: 7, paddingHorizontal: 8 }}>
-                  <Text className="text-xs text-slate-500">LOCATION</Text>
-                  <Chip compact icon={isTracking ? 'navigation' : permissionState === 'foreground_only' ? 'cellphone-marker' : 'map-marker-off'}>{isTracking ? 'Live' : permissionState === 'foreground_only' ? 'While open' : 'Set up'}</Chip>
-                  {!isTracking && <Button mode="text" compact onPress={handleEnableBackgroundTracking}>Enable</Button>}
-                </Card.Content>
-              </Card>
-              <Card style={{ flex: 1 }} mode="contained">
-                <Card.Content style={{ gap: 7, paddingHorizontal: 8 }}>
+                <Card.Content style={{ gap: 4, paddingHorizontal: 10, paddingVertical: 8 }}>
                   <Text className="text-xs text-slate-500">SOCKET</Text>
                   <Chip compact icon={isConnected ? 'wifi' : 'wifi-strength-outline'}>{isConnected ? 'Online' : 'Retrying'}</Chip>
                 </Card.Content>
               </Card>
               <Card style={{ flex: 1 }} mode="contained">
-                <Card.Content style={{ gap: 7, paddingHorizontal: 8 }}>
+                <Card.Content style={{ gap: 2, paddingHorizontal: 10, paddingVertical: 8 }}>
                   <Text className="text-xs text-slate-500">QUEUED</Text>
                   <Text className="text-2xl font-bold text-slate-900">{pendingCount}</Text>
                   <Text className="text-xs text-slate-500">{pendingCount === 0 ? 'All synced' : 'Safe to retry'}</Text>

@@ -4,7 +4,7 @@
 
 import { API_BASE_URL, requireApiOrigin } from '../constants';
 import { SessionStore } from './sessionStore';
-import type { AuthResponse, LoginCredentials, RunnerTask, TaskAttachment, TaskStatus } from '../types';
+import type { AuthResponse, IncompleteReason, LoginCredentials, RunnerTask, TaskAttachment, TaskStatus } from '../types';
 
 type ApiErrorBody = { error?: string; message?: string };
 
@@ -63,9 +63,9 @@ class ApiClient {
     return response.tasks ?? [];
   }
 
-  async updateTask(id: string, status: TaskStatus, documents?: Array<{ id: string; collected: boolean }>): Promise<RunnerTask> {
+  async updateTask(id: string, status: TaskStatus, documents?: Array<{ id: string; collected: boolean }>, incomplete?: { reason: IncompleteReason; note?: string }): Promise<RunnerTask> {
     const response = await request<{ task: RunnerTask }>(`/tasks/${id}`, {
-      method: 'PATCH', body: JSON.stringify({ status, documents }),
+      method: 'PATCH', body: JSON.stringify({ status, documents, incompleteReason: incomplete?.reason, incompleteNote: incomplete?.note }),
     });
     return response.task;
   }

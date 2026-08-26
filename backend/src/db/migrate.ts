@@ -54,6 +54,21 @@ ALTER TABLE users ADD CONSTRAINT users_organization_id_fkey
   FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE RESTRICT;
 CREATE INDEX IF NOT EXISTS idx_users_organization_role ON users (organization_id, role);
 
+CREATE TABLE IF NOT EXISTS dispatch_operators (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  display_name TEXT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (organization_id, display_name)
+);
+
+INSERT INTO dispatch_operators (organization_id, display_name)
+SELECT organization.id, dispatcher_name
+FROM organizations organization
+CROSS JOIN (VALUES ('Vibha'), ('Suraj'), ('Ramesh'), ('Anjali'), ('Subhdip'), ('Princy'), ('Sujaya'), ('Naveen')) AS seed(dispatcher_name)
+ON CONFLICT (organization_id, display_name) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS runner_assignments (
   dispatcher_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   runner_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -103,6 +118,10 @@ ALTER TABLE runner_tasks DROP CONSTRAINT IF EXISTS runner_tasks_priority_check;
 UPDATE runner_tasks SET priority = 'normal' WHERE priority = 'low';
 ALTER TABLE runner_tasks ADD CONSTRAINT runner_tasks_priority_check CHECK (priority IN ('normal','high','urgent'));
 ALTER TABLE runner_tasks ADD COLUMN IF NOT EXISTS due_at TIMESTAMPTZ;
+ALTER TABLE runner_tasks ADD COLUMN IF NOT EXISTS incomplete_reason TEXT;
+ALTER TABLE runner_tasks ADD COLUMN IF NOT EXISTS incomplete_note TEXT;
+ALTER TABLE runner_tasks ADD COLUMN IF NOT EXISTS created_by_operator_id INTEGER REFERENCES dispatch_operators(id) ON DELETE RESTRICT;
+CREATE INDEX IF NOT EXISTS idx_runner_tasks_created_by_operator ON runner_tasks (created_by_operator_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS task_events (
   id BIGSERIAL PRIMARY KEY, organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,

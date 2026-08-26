@@ -84,9 +84,10 @@ retaining the surrounding queue.
 
 ### Phase 5 — Board and map views
 
-**Status: implemented.**
+**Status: board implemented; map view deferred.**
 
-- Add status board and geographic map views with shared filters.
+- Add a status board with shared filters. A geographic map view can be added
+  later if dispatch operations need it.
 - Introduce controlled drag-and-drop only after explicit status actions are
   dependable.
 

@@ -33,12 +33,17 @@ const UpdateRunnerSchema = z.object({
   displayName: z.string().trim().min(2).max(80),
 });
 
+const DispatchOperatorSchema = z.object({
+  displayName: z.string().trim().min(2).max(80),
+});
+
 const IndianMobileSchema = z.string().trim().transform((value) => value.replace(/[\s-]/g, "")).refine(
   (value) => /^(?:\+91|91)?[6-9]\d{9}$/.test(value),
   "clientPhone must be a valid Indian mobile number"
 ).transform((value) => `+91${value.replace(/^(?:\+91|91)/, "")}`);
 
 const CreateTaskSchema = z.object({
+  operatorId: z.coerce.number().int().positive(),
   clientName: z.string().trim().min(2).max(120),
   clientAddress: z.string().trim().min(5).max(500),
   clientPhone: IndianMobileSchema,
@@ -59,7 +64,21 @@ const UpdateTaskSchema = z.object({
   documents: z.array(z.object({ id: z.union([z.string(), z.number()]), collected: z.boolean() })).max(30).optional(),
 }).superRefine((value, ctx) => { if (value.status === "unable_to_complete" && !value.incompleteReason) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "incomplete reason is required" }); });
 
-const DispatcherTaskUpdateSchema = CreateTaskSchema;
+// Editing an existing task must not silently overwrite its original dispatcher
+// attribution. The operator is required only when the task is first assigned.
+const DispatcherTaskUpdateSchema = z.object({
+  clientName: z.string().trim().min(2).max(120),
+  clientAddress: z.string().trim().min(5).max(500),
+  clientPhone: IndianMobileSchema,
+  notes: z.string().trim().max(1000).optional(),
+  documents: z.array(z.string().trim().min(1).max(120)).min(1).max(30),
+  destinationLat: z.number().min(-90).max(90).optional(),
+  destinationLon: z.number().min(-180).max(180).optional(),
+  priority: z.enum(["normal", "high", "urgent"]).default("normal"),
+  dueAt: z.string().datetime().optional(),
+}).refine((value) => (value.destinationLat == null) === (value.destinationLon == null), {
+  message: "destination coordinates must be provided together",
+});
 
 // Dispatch changes are deliberately separate from the full task edit form.
 // This keeps reassignment and rescheduling small, auditable operations and
@@ -145,7 +164,17 @@ function taskDto(row: any) {
     clientAddress: row.client_address, clientPhone: row.client_phone, notes: row.notes,
     status: row.status, destinationLat: row.destination_lat, destinationLon: row.destination_lon, createdAt: row.created_at, acknowledgedAt: row.acknowledged_at,
     startedAt: row.started_at, completedAt: row.completed_at, priority: row.priority, dueAt: row.due_at, incompleteReason: row.incomplete_reason, incompleteNote: row.incomplete_note,
+    createdByOperatorId: row.created_by_operator_id ? String(row.created_by_operator_id) : null,
+    createdByOperatorName: row.created_by_operator_name ?? null,
   };
+}
+
+async function getActiveDispatchOperator(operatorId: number, organizationId: string) {
+  const { rows } = await pool.query(
+    "SELECT id, display_name FROM dispatch_operators WHERE id = $1 AND organization_id = $2 AND active = true",
+    [operatorId, organizationId],
+  );
+  return rows[0] ?? null;
 }
 
 async function recordTaskEvent(organizationId: string, taskId: string, actorId: string, eventType: string, metadata: Record<string, unknown> = {}) {
@@ -193,7 +222,10 @@ apiRouter.delete("/devices/push-token", requireUser, async (req: any, res) => {
 });
 
 async function getTask(taskId: string, organizationId: string) {
-  const { rows } = await pool.query(`SELECT * FROM runner_tasks WHERE id = $1 AND organization_id = $2`, [taskId, organizationId]);
+  const { rows } = await pool.query(`SELECT task.*, operator.display_name AS created_by_operator_name
+    FROM runner_tasks task
+    LEFT JOIN dispatch_operators operator ON operator.id = task.created_by_operator_id
+    WHERE task.id = $1 AND task.organization_id = $2`, [taskId, organizationId]);
   if (!rows[0]) return null;
   const { rows: documents } = await pool.query(`SELECT id, name, collected, collected_at FROM runner_task_documents WHERE task_id = $1 ORDER BY id`, [taskId]);
   return { ...taskDto(rows[0]), documents: documents.map((d) => ({ id: String(d.id), name: d.name, collected: d.collected, collectedAt: d.collected_at })) };
@@ -374,6 +406,47 @@ apiRouter.get("/document-types", requireDispatcher, async (req: any, res) => {
   res.json({ documentTypes: rows.map((row) => ({ id: String(row.id), name: row.name })) });
 });
 
+// Operating dispatchers are session-selected names used for task attribution.
+// They are deliberately separate from login accounts so a shared dashboard
+// credential can still retain an accurate audit trail.
+apiRouter.get("/dispatch-operators", requireDispatcher, async (req: any, res) => {
+  const { rows } = await pool.query(
+    "SELECT id, display_name, active FROM dispatch_operators WHERE organization_id = $1 AND active = true ORDER BY display_name",
+    [req.user.organizationId],
+  );
+  res.json({ operators: rows.map((row) => ({ id: String(row.id), displayName: row.display_name, active: row.active })) });
+});
+
+apiRouter.post("/dispatch-operators", requireDispatcher, async (req: any, res) => {
+  const parsed = DispatchOperatorSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid dispatcher name" });
+  const { rows } = await pool.query(
+    "INSERT INTO dispatch_operators (organization_id, display_name) VALUES ($1, $2) RETURNING id, display_name, active",
+    [req.user.organizationId, parsed.data.displayName],
+  );
+  res.status(201).json({ operator: { id: String(rows[0].id), displayName: rows[0].display_name, active: rows[0].active } });
+});
+
+apiRouter.patch("/dispatch-operators/:id", requireDispatcher, async (req: any, res) => {
+  const parsed = DispatchOperatorSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid dispatcher name" });
+  const { rows } = await pool.query(
+    "UPDATE dispatch_operators SET display_name = $1 WHERE id = $2 AND organization_id = $3 AND active = true RETURNING id, display_name, active",
+    [parsed.data.displayName, req.params.id, req.user.organizationId],
+  );
+  if (!rows[0]) return res.status(404).json({ error: "dispatcher not found" });
+  res.json({ operator: { id: String(rows[0].id), displayName: rows[0].display_name, active: rows[0].active } });
+});
+
+apiRouter.delete("/dispatch-operators/:id", requireDispatcher, async (req: any, res) => {
+  const { rows } = await pool.query(
+    "UPDATE dispatch_operators SET active = false WHERE id = $1 AND organization_id = $2 AND active = true RETURNING id",
+    [req.params.id, req.user.organizationId],
+  );
+  if (!rows[0]) return res.status(404).json({ error: "dispatcher not found" });
+  res.json({ ok: true });
+});
+
 apiRouter.get("/runners/:id/tasks", requireDispatcher, async (req: any, res) => {
   const runnerId = String(req.params.id);
   const { rows: assignment } = await pool.query(`SELECT 1 FROM runner_assignments WHERE runner_id = $1 AND dispatcher_id = $2 AND organization_id = $3 AND active = true`, [runnerId, req.user.sub, req.user.organizationId]);
@@ -402,6 +475,8 @@ apiRouter.post("/runners/:id/tasks/with-attachments", requireDispatcher, (req: a
   if (!parsed.success) return res.status(400).json({ error: "invalid task details" });
 
   const runnerId = String(req.params.id);
+  const operator = await getActiveDispatchOperator(parsed.data.operatorId, String(req.user.organizationId));
+  if (!operator) return res.status(400).json({ error: "select an active dispatcher before assigning a task" });
   const { rows: assignment } = await pool.query(`SELECT 1 FROM runner_assignments WHERE runner_id = $1 AND dispatcher_id = $2 AND organization_id = $3 AND active = true`, [runnerId, req.user.sub, req.user.organizationId]);
   if (!assignment[0]) return res.status(404).json({ error: "runner not found" });
 
@@ -449,7 +524,7 @@ apiRouter.post("/runners/:id/tasks/with-attachments", requireDispatcher, (req: a
   let committed = false;
   try {
     await client.query("BEGIN");
-    const { rows } = await client.query(`INSERT INTO runner_tasks (organization_id, dispatcher_id, runner_id, client_name, client_address, client_phone, notes, destination_lat, destination_lon, priority, due_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`, [req.user.organizationId, req.user.sub, runnerId, parsed.data.clientName, parsed.data.clientAddress, parsed.data.clientPhone, parsed.data.notes || null, parsed.data.destinationLat ?? null, parsed.data.destinationLon ?? null, parsed.data.priority, parsed.data.dueAt ?? null]);
+    const { rows } = await client.query(`INSERT INTO runner_tasks (organization_id, dispatcher_id, created_by_operator_id, runner_id, client_name, client_address, client_phone, notes, destination_lat, destination_lon, priority, due_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`, [req.user.organizationId, req.user.sub, operator.id, runnerId, parsed.data.clientName, parsed.data.clientAddress, parsed.data.clientPhone, parsed.data.notes || null, parsed.data.destinationLat ?? null, parsed.data.destinationLon ?? null, parsed.data.priority, parsed.data.dueAt ?? null]);
     const taskId = String(rows[0].id);
     for (const document of [...new Set(parsed.data.documents)]) await client.query("INSERT INTO runner_task_documents (task_id, name) VALUES ($1, $2)", [taskId, document]);
 
@@ -463,7 +538,7 @@ apiRouter.post("/runners/:id/tasks/with-attachments", requireDispatcher, (req: a
       await client.query("INSERT INTO runner_task_attachments (task_id, organization_id, storage_path, original_name, content_type, size_bytes, uploaded_by) VALUES ($1,$2,$3,$4,$5,$6,$7)", [taskId, req.user.organizationId, finalPath, file.originalname, file.mimetype, file.size, req.user.sub]);
     }
     await client.query("UPDATE task_assignment_requests SET task_id = $1 WHERE organization_id = $2 AND dispatcher_id = $3 AND idempotency_key = $4", [taskId, req.user.organizationId, req.user.sub, idempotencyKey]);
-    await client.query("INSERT INTO task_events (organization_id, task_id, actor_id, event_type, metadata) VALUES ($1,$2,$3,$4,$5)", [req.user.organizationId, taskId, req.user.sub, "created", JSON.stringify({ priority: parsed.data.priority, dueAt: parsed.data.dueAt ?? null, attachments: files.length })]);
+    await client.query("INSERT INTO task_events (organization_id, task_id, actor_id, event_type, metadata) VALUES ($1,$2,$3,$4,$5)", [req.user.organizationId, taskId, req.user.sub, "created", JSON.stringify({ priority: parsed.data.priority, dueAt: parsed.data.dueAt ?? null, attachments: files.length, operatorId: operator.id, operatorName: operator.display_name })]);
     await client.query("COMMIT");
     committed = true;
     const task = await getTask(taskId, String(req.user.organizationId));
@@ -488,15 +563,17 @@ apiRouter.post("/runners/:id/tasks", requireDispatcher, async (req: any, res) =>
   const parsed = CreateTaskSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid task details" });
   const runnerId = String(req.params.id);
+  const operator = await getActiveDispatchOperator(parsed.data.operatorId, String(req.user.organizationId));
+  if (!operator) return res.status(400).json({ error: "select an active dispatcher before assigning a task" });
   const { rows: assignment } = await pool.query(`SELECT 1 FROM runner_assignments WHERE runner_id = $1 AND dispatcher_id = $2 AND organization_id = $3 AND active = true`, [runnerId, req.user.sub, req.user.organizationId]);
   if (!assignment[0]) return res.status(404).json({ error: "runner not found" });
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const { rows } = await client.query(`INSERT INTO runner_tasks (organization_id, dispatcher_id, runner_id, client_name, client_address, client_phone, notes, destination_lat, destination_lon, priority, due_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`, [req.user.organizationId, req.user.sub, runnerId, parsed.data.clientName, parsed.data.clientAddress, parsed.data.clientPhone, parsed.data.notes || null, parsed.data.destinationLat ?? null, parsed.data.destinationLon ?? null, parsed.data.priority, parsed.data.dueAt ?? null]);
+    const { rows } = await client.query(`INSERT INTO runner_tasks (organization_id, dispatcher_id, created_by_operator_id, runner_id, client_name, client_address, client_phone, notes, destination_lat, destination_lon, priority, due_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`, [req.user.organizationId, req.user.sub, operator.id, runnerId, parsed.data.clientName, parsed.data.clientAddress, parsed.data.clientPhone, parsed.data.notes || null, parsed.data.destinationLat ?? null, parsed.data.destinationLon ?? null, parsed.data.priority, parsed.data.dueAt ?? null]);
     for (const document of [...new Set(parsed.data.documents)]) await client.query(`INSERT INTO runner_task_documents (task_id, name) VALUES ($1, $2)`, [rows[0].id, document]);
     await client.query("COMMIT");
-    await recordTaskEvent(req.user.organizationId, String(rows[0].id), req.user.sub, "created", { priority: parsed.data.priority, dueAt: parsed.data.dueAt ?? null });
+    await recordTaskEvent(req.user.organizationId, String(rows[0].id), req.user.sub, "created", { priority: parsed.data.priority, dueAt: parsed.data.dueAt ?? null, operatorId: operator.id, operatorName: operator.display_name });
     const task = await getTask(String(rows[0].id), String(req.user.organizationId));
     req.app.get("io").to(`runner:${runnerId}`).emit("task:created", task);
     req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${runnerId}`).emit("task:created", task);

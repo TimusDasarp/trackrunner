@@ -4,11 +4,19 @@ import { clearSession } from "../lib/auth";
 import { disconnectSocket } from "../lib/socket";
 import { useRunners } from "../hooks/useRunners";
 import { tasksWorkspaceEnabled } from "../lib/config";
+import { DispatcherSessionProvider, useDispatcherSession } from "../lib/dispatcherSession";
+import DispatcherWorkspacePicker from "./DispatcherWorkspacePicker";
 
 export default function AppShell() {
+  return <DispatcherSessionProvider><AppShellContent /></DispatcherSessionProvider>;
+}
+
+function AppShellContent() {
   const nav = useNavigate();
   const { connected } = useRunners();
+  const { selectedOperator, clearSelection, openSelector } = useDispatcherSession();
   function signOut() {
+    clearSelection();
     clearSession();
     disconnectSocket();
     nav("/login", { replace: true });
@@ -109,6 +117,14 @@ export default function AppShell() {
               order: { xs: 2, sm: 3 },
             }}
           >
+            {selectedOperator && <Button
+              onClick={openSelector}
+              size="small"
+              color="inherit"
+              sx={{ minHeight: 32, mr: 0.25, px: 1.1, borderRadius: 99, bgcolor: "#e6f4ef", color: "#1f6b50", fontWeight: 750, textTransform: "none", whiteSpace: "nowrap" }}
+            >
+              {selectedOperator.displayName}'s workspace
+            </Button>}
             <Button
               onClick={signOut}
               size="small"
@@ -121,6 +137,7 @@ export default function AppShell() {
         </Toolbar>
       </AppBar>
       <Outlet />
+      <DispatcherWorkspacePicker />
     </Box>
   );
 }

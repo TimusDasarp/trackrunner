@@ -32,6 +32,7 @@ import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 import ViewListOutlinedIcon from "@mui/icons-material/ViewListOutlined";
 import ViewKanbanOutlinedIcon from "@mui/icons-material/ViewKanbanOutlined";
 import { api } from "../lib/auth";
+import { useDispatcherSession } from "../lib/dispatcherSession";
 import { useRunners } from "../hooks/useRunners";
 import {
   beginsToday,
@@ -80,6 +81,7 @@ function priorityTone(priority?: TaskPriority) {
  */
 export default function TasksPage() {
   const { runners } = useRunners();
+  const { operators } = useDispatcherSession();
   const [params, setParams] = useSearchParams();
   const [tasks, setTasks] = useState<DispatcherTask[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,6 +90,7 @@ export default function TasksPage() {
   const [status, setStatus] = useState<"all" | TaskStatus>("all");
   const [priority, setPriority] = useState<"all" | TaskPriority>("all");
   const [runnerId, setRunnerId] = useState("all");
+  const [operatorId, setOperatorId] = useState("all");
   const [quickView, setQuickView] = useState<QuickView | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [view, setView] = useState<"list" | "board">("list");
@@ -162,6 +165,7 @@ export default function TasksPage() {
           (runnerId === "unassigned"
             ? !task.runnerId
             : task.runnerId === runnerId)) &&
+        (operatorId === "all" || task.createdByOperatorId === operatorId) &&
         (!normalisedQuery || searchableText.includes(normalisedQuery));
       if (!matchesBasicFilters) return false;
       if (quickView === "today") return beginsToday(task.dueAt);
@@ -179,13 +183,14 @@ export default function TasksPage() {
       }
       return true;
     });
-  }, [priority, query, quickView, runnerId, runners, status, tasks]);
+  }, [operatorId, priority, query, quickView, runnerId, runners, status, tasks]);
 
   function clearFilters() {
     setQuery("");
     setStatus("all");
     setPriority("all");
     setRunnerId("all");
+    setOperatorId("all");
     setQuickView(null);
   }
 
@@ -360,6 +365,22 @@ export default function TasksPage() {
                       <MenuItem key={runner.runnerId} value={runner.runnerId}>
                         {runner.displayName}
                       </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl size="small" fullWidth>
+                  <InputLabel>Created by</InputLabel>
+                  <Select
+                    label="Created by"
+                    value={operatorId}
+                    onChange={(event) => {
+                      setOperatorId(event.target.value);
+                      setQuickView(null);
+                    }}
+                  >
+                    <MenuItem value="all">All dispatchers</MenuItem>
+                    {operators.map((operator) => (
+                      <MenuItem key={operator.id} value={operator.id}>{operator.displayName}</MenuItem>
                     ))}
                   </Select>
                 </FormControl>
@@ -646,6 +667,7 @@ function TaskRow({
       elevation={0}
       sx={{
         width: "100%",
+        height: "100%",
         cursor: "pointer",
         textAlign: "left",
         border: "1px solid",
@@ -653,6 +675,8 @@ function TaskRow({
         borderLeft: `4px solid ${priority.border}`,
         p: 1.5,
         bgcolor: selected ? "#f5faff" : "#fff",
+        display: "flex",
+        flexDirection: "column",
         "&:hover": {
           borderColor: "primary.main",
           boxShadow: "0 4px 18px rgba(0,55,102,.08)",
@@ -660,9 +684,9 @@ function TaskRow({
       }}
     >
       <Stack
-        direction="row"
+        direction={{ xs: "column", sm: "row" }}
         justifyContent="space-between"
-        gap={1.5}
+        gap={1}
         alignItems="flex-start"
       >
         <div style={{ minWidth: 0 }}>
@@ -677,7 +701,7 @@ function TaskRow({
           direction="row"
           gap={0.75}
           flexWrap="wrap"
-          justifyContent="flex-end"
+          justifyContent={{ xs: "flex-start", sm: "flex-end" }}
         >
           <Chip
             size="small"
@@ -687,6 +711,9 @@ function TaskRow({
           <Chip size="small" label={statusLabel[task.status]} />
         </Stack>
       </Stack>
+      <Typography variant="caption" color="text.secondary" mt={1} noWrap>
+        Created by {task.createdByOperatorName ?? "Unattributed"}
+      </Typography>
       <Stack
         direction={{ xs: "column", sm: "row" }}
         gap={1.25}

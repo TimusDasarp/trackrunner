@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { socketClient } from '../services/socketClient';
-import type { RunnerTask, TaskStatus } from '../types';
+import type { IncompleteReason, RunnerTask, TaskStatus } from '../types';
 
 export function useTasks() {
   const [tasks, setTasks] = useState<RunnerTask[]>([]);
@@ -48,8 +48,8 @@ export function useTasks() {
     };
   }, [refresh]);
 
-  const update = useCallback(async (task: RunnerTask, status: TaskStatus, documents = task.documents) => {
-    const updated = await api.updateTask(task.id, status, documents.map((doc) => ({ id: doc.id, collected: doc.collected })));
+  const update = useCallback(async (task: RunnerTask, status: TaskStatus, documents = task.documents, incomplete?: { reason: IncompleteReason; note?: string }) => {
+    const updated = await api.updateTask(task.id, status, documents.map((doc) => ({ id: doc.id, collected: doc.collected })), incomplete);
     setTasks((current) => updated.status === 'completed' || updated.status === 'unable_to_complete'
       ? current.filter((item) => item.id !== updated.id)
       : [updated, ...current.filter((item) => item.id !== updated.id)]);
