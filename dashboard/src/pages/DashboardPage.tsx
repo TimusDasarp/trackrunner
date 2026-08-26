@@ -3,6 +3,7 @@ import { useRunners } from "../hooks/useRunners";
 import RunnerMap from "../components/RunnerMap";
 import RunnerList from "../components/RunnerList";
 import RunnerDetail from "../components/RunnerDetail";
+import RunnerStatusGuide from "../components/RunnerStatusGuide";
 import TaskBoard, { type Task as BoardTask } from "../components/TaskBoard";
 import AddressPicker, { type AddressPin } from "../components/AddressPicker";
 import { api, getToken } from "../lib/auth";
@@ -629,20 +630,9 @@ export default function DashboardPage() {
           color="default"
         >
           <div className="border-b border-border px-5 py-4">
-            <div className="text-sm font-semibold">Available Runners</div>
-            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-on-surface-variant">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-600" />
-                Location always allowed
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-amber-600" />
-                Location when app is open
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-slate-500" />
-                Offline
-              </span>
+            <div className="flex items-center gap-1">
+              <div className="text-sm font-semibold">Available Runners</div>
+              <RunnerStatusGuide />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 border-b border-border bg-surface-variant p-3">
@@ -733,7 +723,7 @@ export default function DashboardPage() {
             </button>
           </div>
           {isMapOpen && (
-            <div id="dashboard-runner-map" className="border-t border-border p-3 lg:min-h-0 lg:flex-1" key={`runner-map-${selectedId ?? "all"}`}>
+            <div id="dashboard-runner-map" className="min-h-[304px] border-t border-border p-3 lg:min-h-0 lg:flex-1" key={`runner-map-${selectedId ?? "all"}`}>
               <RunnerMap
                 runners={runners}
                 selectedId={selectedId}

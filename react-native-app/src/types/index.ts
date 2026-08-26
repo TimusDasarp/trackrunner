@@ -64,6 +64,6 @@ export interface TaskAttachment {
   createdAt: string;
 }
 export interface RunnerTask {
-  id: string; runnerId: string; clientName: string; clientAddress: string; clientPhone: string;
+  id: string; runnerId: string; createdByOperatorId?: string | null; createdByOperatorName?: string | null; clientName: string; clientAddress: string; clientPhone: string;
   notes?: string | null; destinationLat?: number | null; destinationLon?: number | null; priority?: 'normal' | 'high' | 'urgent' | 'low'; status: TaskStatus; createdAt: string; incompleteReason?: IncompleteReason | null; incompleteNote?: string | null; documents: RunnerTaskDocument[];
 }

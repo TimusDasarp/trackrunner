@@ -186,6 +186,16 @@ export default function MainScreen() {
                 </View>
 
                 <View className="flex-row flex-wrap gap-2">
+                  {task.createdByOperatorName ? (
+                    <Chip
+                      compact
+                      icon="account-outline"
+                      style={{ backgroundColor: '#EAF4FF' }}
+                      textStyle={{ color: '#0F4C81', fontWeight: '700' }}
+                    >
+                      Assigned by {task.createdByOperatorName}
+                    </Chip>
+                  ) : null}
                   <Chip compact icon="phone" onPress={() => Linking.openURL(`tel:${task.clientPhone}`)}>{task.clientPhone}</Chip>
                   <Chip compact icon="file-document-outline">{collectedDocuments}/{task.documents.length} docs</Chip>
                 </View>

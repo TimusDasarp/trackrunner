@@ -44,12 +44,25 @@ export default function RunnerMap({ runners, selectedId, trail, onSelect, viewer
   const liveRunners = Object.values(runners).filter((runner) => runner.hasLocation && getRunnerStatus(runner) === "live");
 
   if (!hasGoogleMapsConfig) {
-    return <MapSetupNotice />;
+    return <MapSetupNotice compact={compact} />;
   }
 
   return (
     <APIProvider apiKey={googleMapsApiKey} libraries={["places"]}>
-      <Map defaultCenter={{ lat: initialCenter[0], lng: initialCenter[1] }} defaultZoom={selected ? 16 : 13} mapId={googleMapsMapId} className="h-full w-full rounded-2xl" style={{ minHeight: compact ? 240 : 400 }} gestureHandling="greedy" zoomControl scrollwheel disableDoubleClickZoom={false}>
+      <Map
+        defaultCenter={{ lat: initialCenter[0], lng: initialCenter[1] }}
+        defaultZoom={selected ? 16 : 13}
+        mapId={googleMapsMapId}
+        className="w-full rounded-2xl"
+        // An explicit height is essential when this map is revealed by the
+        // mobile View map action. Percentage heights can resolve to zero when
+        // the parent card is content-sized, leaving Google Maps invisible.
+        style={{ height: compact ? 280 : 400 }}
+        gestureHandling="greedy"
+        zoomControl
+        scrollwheel
+        disableDoubleClickZoom={false}
+      >
         {liveRunners.map((r) => (
           <AdvancedMarker
           key={r.runnerId}
@@ -81,6 +94,6 @@ export default function RunnerMap({ runners, selectedId, trail, onSelect, viewer
   );
 }
 
-export function MapSetupNotice() {
-  return <div className="grid h-full min-h-[400px] place-items-center rounded-2xl bg-[#e8edf6] p-6 text-center text-sm text-on-surface-variant"><div><p className="font-semibold text-ink">Google Maps needs configuration</p><p className="mt-1">Set <code>VITE_GOOGLE_MAPS_API_KEY</code> and <code>VITE_GOOGLE_MAP_ID</code> in <code>dashboard/.env.local</code>.</p></div></div>;
+export function MapSetupNotice({ compact = false }: { compact?: boolean }) {
+  return <div className="grid place-items-center rounded-2xl bg-[#e8edf6] p-6 text-center text-sm text-on-surface-variant" style={{ minHeight: compact ? 280 : 400 }}><div><p className="font-semibold text-ink">Google Maps needs configuration</p><p className="mt-1">Set <code>VITE_GOOGLE_MAPS_API_KEY</code> and <code>VITE_GOOGLE_MAP_ID</code> in <code>dashboard/.env.local</code>.</p></div></div>;
 }
