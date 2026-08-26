@@ -92,7 +92,7 @@ function AppShellContent() {
                   fontWeight: 700,
                 }}
               >
-                Dispatcher workspace
+                {connected ? "Connected" : "Reconnecting…"}
               </Typography>
             </Box>
           </Box>

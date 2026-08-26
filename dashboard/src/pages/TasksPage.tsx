@@ -240,7 +240,7 @@ export default function TasksPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-7">
+    <main className="mx-auto w-full max-w-6xl p-4 sm:p-6 lg:p-7">
       <Stack
         direction={{ xs: "column", md: "row" }}
         justifyContent="space-between"
