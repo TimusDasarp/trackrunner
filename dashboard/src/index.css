@@ -23,14 +23,14 @@ button, input, select, textarea { font: inherit; }
   box-shadow: var(--focus-ring);
 }
 
-/* Google Places renders inside a web component. Force a light scheme so its
-   suggestion panel stays readable even when the OS/browser uses dark mode. */
-.delivery-address-search,
-.delivery-address-search gmp-place-autocomplete {
+/* Google Places appends its autocomplete panel outside our React dialog.
+   Give it a higher stacking layer than the task modal and the embedded map,
+   otherwise valid suggestions are hidden behind the location map. */
+.delivery-address-search {
   color-scheme: light !important;
 }
 
-.delivery-address-search gmp-place-autocomplete::part(input) {
-  color: var(--content-primary);
-  font: inherit;
+.pac-container {
+  z-index: 2147483647 !important;
+  color-scheme: light;
 }
