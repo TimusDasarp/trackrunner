@@ -115,18 +115,19 @@ function AppShellContent() {
             {isAdmin && <NavButton to="/runners" label="Runners" />}
             <NavButton to="/analytics" label="Analytics" />
           </Box>
+
           <Box
             sx={{
               display: "flex",
               alignItems: "center",
               ml: "auto",
               order: { xs: 2, sm: 3 },
-              width: "auto",
               justifyContent: "flex-end",
               gap: 0.25,
               minWidth: 0,
             }}
           >
+            {/* workspace selector */}
             {selectedOperator && <>
               <Button
                 onClick={openSelector}
@@ -167,6 +168,7 @@ function AppShellContent() {
                 </Button>
               </Popover>
             </>}
+            {/* sign out btn */}
             <Button
               onClick={signOut}
               size="small"
