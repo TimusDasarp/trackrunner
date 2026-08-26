@@ -121,7 +121,7 @@ function AppShellContent() {
               alignItems: "center",
               ml: "auto",
               order: { xs: 2, sm: 3 },
-              width: { xs: "100%", sm: "auto" },
+              width: "auto",
               justifyContent: "flex-end",
               gap: 0.25,
               minWidth: 0,
