@@ -635,7 +635,7 @@ export default function DashboardPage() {
               <RunnerStatusGuide />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 border-b border-border bg-surface-variant p-3">
+          <div className="grid grid-cols-2 gap-2 border-b border-border bg-surface-variant p-2">
             <Metric
               label="Live"
               value={statusCounts.live}
@@ -1354,7 +1354,7 @@ function Metric({
   tone: string;
 }) {
   return (
-    <div className="min-w-0 rounded-xl border border-[#e3e1e9] bg-white px-3 py-2.5">
+    <div className="min-w-0 rounded-xl border border-[#e3e1e9] bg-white p-1.5">
       {/* <div className="truncate text-[11px] font-medium text-on-surface-variant">
         {label}
       </div> */}
