@@ -624,7 +624,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex min-h-[calc(100dvh-116px)] flex-col bg-panel text-ink lg:h-[calc(100dvh-72px)] lg:min-h-0">
-      <main className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-3 overflow-visible p-4 sm:gap-4 sm:p-6 lg:h-full lg:min-h-0 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.65fr)_minmax(260px,0.8fr)] lg:overflow-hidden lg:p-7">
+      <main className="mx-auto grid w-full max-w-[1450px] grid-cols-1 gap-3 overflow-visible p-4 sm:gap-4 sm:p-6 lg:h-full lg:min-h-0 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.65fr)_minmax(260px,0.8fr)] lg:overflow-hidden lg:p-7">
         <Card
           className="order-1 min-w-0 overflow-hidden  border border-border bg-surface shadow-[var(--shadow-card)]"
           color="default"

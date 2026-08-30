@@ -159,7 +159,7 @@ export default function ManageRunnersPage() {
   }
   const selectedOperator = operators.find((operator) => operator.id === selectedOperatorId) ?? null;
   return (
-    <main className="mx-auto w-full max-w-6xl p-4 sm:p-6 lg:p-7">
+    <main className="mx-auto w-full max-w-[1450px] p-4 sm:p-6 lg:p-7">
       <Stack
         direction={{ xs: "column", sm: "row" }}
         justifyContent="space-between"
