@@ -11,7 +11,7 @@ import { getSocket } from "../lib/socket";
 import { getRunnerStatus, type RunnerState } from "../lib/types";
 import { useDispatcherSession } from "../lib/dispatcherSession";
 import { Card } from "@material-tailwind/react";
-import { Alert, Snackbar } from "@mui/material";
+import { Alert, Dialog, DialogContent, DialogTitle, Snackbar } from "@mui/material";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 
 type RunnerForm = { email: string; password: string; displayName: string };
@@ -196,6 +196,7 @@ export default function DashboardPage() {
   const { runners, refresh } = useRunners();
   const { selectedOperator } = useDispatcherSession();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [isRunnerPickerOpen, setIsRunnerPickerOpen] = useState(false);
   const [isMapOpen, setIsMapOpen] = useState(() => window.innerWidth >= 1024);
   const [trail, setTrail] = useState<Array<[number, number]>>([]);
   const [history, setHistory] = useState<any[]>([]);
@@ -647,12 +648,44 @@ export default function DashboardPage() {
               </span>
             </div>
           </div>
-          <RunnerList
-            runners={runners}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-          />
+          <button
+            type="button"
+            onClick={() => setIsRunnerPickerOpen(true)}
+            className="mx-4 mb-4 flex min-h-11 w-[calc(100%-2rem)] items-center justify-between rounded-xl border border-border bg-surface px-3 text-left text-sm font-semibold text-ink shadow-sm hover:bg-surface-variant/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:hidden"
+            aria-haspopup="dialog"
+          >
+            <span className="min-w-0 truncate">{selected ? selected.displayName : "Choose a runner"}</span>
+            <span aria-hidden="true" className="ml-3 text-on-surface-variant">⌄</span>
+          </button>
+          <div className="hidden lg:block">
+            <RunnerList
+              runners={runners}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+            />
+          </div>
         </Card>
+
+        <Dialog
+          open={isRunnerPickerOpen}
+          onClose={() => setIsRunnerPickerOpen(false)}
+          fullWidth
+          maxWidth="sm"
+          PaperProps={{ sx: { m: { xs: 1.5, sm: 3 }, width: "calc(100% - 24px)", borderRadius: 3 } }}
+        >
+          <DialogTitle sx={{ pb: 1, fontWeight: 800 }}>Select a runner</DialogTitle>
+          <DialogContent sx={{ px: 0, pb: 1.5 }}>
+            <RunnerList
+              runners={runners}
+              selectedId={selectedId}
+              compact
+              onSelect={(runnerId) => {
+                setSelectedId(runnerId);
+                setIsRunnerPickerOpen(false);
+              }}
+            />
+          </DialogContent>
+        </Dialog>
 
         <div className="order-2 flex min-w-0 flex-col overflow-hidden lg:min-h-0 lg:pr-1">
           <Card
