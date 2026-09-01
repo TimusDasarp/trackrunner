@@ -53,10 +53,10 @@ export default function RunnerMap({ runners, selectedId, trail, onSelect, viewer
         defaultCenter={{ lat: initialCenter[0], lng: initialCenter[1] }}
         defaultZoom={selected ? 16 : 13}
         mapId={googleMapsMapId}
-        // The Maps component does not reliably forward inline height styles to
-        // its host element. A concrete utility class keeps the mobile canvas
-        // visible when the location panel is opened.
-        className={`${compact ? "h-[280px]" : "h-[400px]"} w-full rounded-2xl`}
+        // The enclosing dashboard panel owns the available height. On mobile
+        // it supplies a dependable 280px minimum; on larger screens it grows
+        // with the Location card instead of leaving unused empty space.
+        className={`${compact ? "h-full" : "h-[400px]"} w-full rounded-2xl`}
         gestureHandling="greedy"
         zoomControl
         scrollwheel

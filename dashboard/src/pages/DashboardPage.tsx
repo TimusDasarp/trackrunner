@@ -717,15 +717,17 @@ export default function DashboardPage() {
             </button>
           </div>
           {isMapOpen && (
-            <div id="dashboard-runner-map" className="min-h-[304px] border-t border-border p-3 lg:min-h-0 lg:flex-1" key={`runner-map-${selectedId ?? "all"}`}>
-              <RunnerMap
-                runners={runners}
-                selectedId={selectedId}
-                trail={trail}
-                onSelect={(runnerId) => setSelectedId(runnerId || null)}
-                viewerLocation={viewerLocation}
-                compact
-              />
+            <div id="dashboard-runner-map" className="flex min-h-[304px] flex-col border-t border-border p-3 lg:min-h-0 lg:flex-1" key={`runner-map-${selectedId ?? "all"}`}>
+              <div className="h-[280px] min-h-0 lg:h-auto lg:flex-1">
+                <RunnerMap
+                  runners={runners}
+                  selectedId={selectedId}
+                  trail={trail}
+                  onSelect={(runnerId) => setSelectedId(runnerId || null)}
+                  viewerLocation={viewerLocation}
+                  compact
+                />
+              </div>
             </div>
           )}
         </Card>
