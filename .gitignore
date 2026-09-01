@@ -1,0 +1,8 @@
+# Operating-system metadata
+.DS_Store
+
+# Generated TypeScript build state
+*.tsbuildinfo
+
+# Per-user Xcode workspace state
+xcuserdata/
