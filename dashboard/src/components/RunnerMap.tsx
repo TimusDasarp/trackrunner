@@ -53,11 +53,10 @@ export default function RunnerMap({ runners, selectedId, trail, onSelect, viewer
         defaultCenter={{ lat: initialCenter[0], lng: initialCenter[1] }}
         defaultZoom={selected ? 16 : 13}
         mapId={googleMapsMapId}
-        className="w-full rounded-2xl"
-        // An explicit height is essential when this map is revealed by the
-        // mobile View map action. Percentage heights can resolve to zero when
-        // the parent card is content-sized, leaving Google Maps invisible.
-        style={{ height: compact ? 280 : 400 }}
+        // The Maps component does not reliably forward inline height styles to
+        // its host element. A concrete utility class keeps the mobile canvas
+        // visible when the location panel is opened.
+        className={`${compact ? "h-[280px]" : "h-[400px]"} w-full rounded-2xl`}
         gestureHandling="greedy"
         zoomControl
         scrollwheel

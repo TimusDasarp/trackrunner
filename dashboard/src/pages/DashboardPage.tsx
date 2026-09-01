@@ -3,7 +3,6 @@ import { useRunners } from "../hooks/useRunners";
 import RunnerMap from "../components/RunnerMap";
 import RunnerList from "../components/RunnerList";
 import RunnerDetail from "../components/RunnerDetail";
-import RunnerStatusGuide from "../components/RunnerStatusGuide";
 import TaskBoard, { type Task as BoardTask } from "../components/TaskBoard";
 import AddressPicker, { type AddressPin } from "../components/AddressPicker";
 import { api, getToken } from "../lib/auth";
@@ -355,6 +354,7 @@ export default function DashboardPage() {
     () =>
       Object.values(runners).reduce(
         (counts, runner) => {
+          if (runner.assignmentActive === false) return counts;
           counts[getRunnerStatus(runner, now)] += 1;
           return counts;
         },
@@ -629,29 +629,23 @@ export default function DashboardPage() {
           className="order-1 min-w-0 overflow-hidden  border border-border bg-surface shadow-[var(--shadow-card)]"
           color="default"
         >
-          <div className="border-b border-border px-5 py-4">
-            <div className="flex items-center gap-1">
+          <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-3.5">
+            <div className="min-w-0">
               <div className="text-sm font-semibold">Available Runners</div>
-              <RunnerStatusGuide />
+              <p className="mt-0.5 text-xs text-on-surface-variant">
+                Select any active runner to assign a task
+              </p>
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2 border-b border-border bg-surface-variant p-2">
-            <Metric
-              label="Live"
-              value={statusCounts.live}
-              tone="bg-emerald-500"
-            />
-            <Metric label="Idle" value={statusCounts.idle} tone="bg-sky-500" />
-            {/* <Metric
-              label="Needs attention"
-              value={statusCounts.stale}
-              tone="bg-amber-500"
-            />
-            <Metric
-              label="Offline"
-              value={statusCounts.offline}
-              tone="bg-slate-400"
-            /> */}
+            <div className="flex shrink-0 flex-col items-end gap-1 text-xs font-semibold">
+              <span className="inline-flex items-center gap-1.5 text-emerald-800">
+                <span className="h-2 w-2 rounded-full bg-emerald-600" />
+                Live <span className="text-sm text-ink">{statusCounts.live}</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-sky-800">
+                <span className="h-2 w-2 rounded-full bg-sky-500" />
+                Idle <span className="text-sm text-ink">{statusCounts.idle}</span>
+              </span>
+            </div>
           </div>
           <RunnerList
             runners={runners}
@@ -1340,31 +1334,6 @@ export default function DashboardPage() {
           </Alert>
         </Snackbar>
       ))}
-    </div>
-  );
-}
-
-function Metric({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone: string;
-}) {
-  return (
-    <div className="min-w-0 rounded-xl border border-[#e3e1e9] bg-white p-1.5">
-      {/* <div className="truncate text-[11px] font-medium text-on-surface-variant">
-        {label}
-      </div> */}
-      <div className="mt-1 flex items-center gap-2">
-        <span className="text-[12px] font-medium text-on-surface-variant">
-          {label}
-        </span>
-        <span className="text-lg font-semibold">{value}</span>
-        <span className={`h-2 w-2 shrink-0 rounded-full ${tone}`} />
-      </div>
     </div>
   );
 }
