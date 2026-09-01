@@ -243,22 +243,26 @@ async function getTask(taskId: string, organizationId: string) {
 
 apiRouter.get("/runners", requireDispatcher, async (_req: any, res) => {
   const includeArchived = _req.query.includeArchived === "true";
-  const { rows: assignments } = _req.user.isAdmin
-    ? await pool.query(
-      `SELECT id, display_name, email, true AS active FROM users
-       WHERE organization_id = $1 AND role = 'runner' ORDER BY display_name ASC`,
-      [_req.user.organizationId],
-    )
-    : await pool.query(
-    `SELECT runner.id, runner.display_name, runner.email
-           , assignment.active
-     FROM runner_assignments assignment
-     JOIN users runner ON runner.id = assignment.runner_id
-     WHERE assignment.dispatcher_id = $1
-       AND assignment.organization_id = $2
-       ${includeArchived ? "" : "AND assignment.active = true"}
-     ORDER BY assignment.active DESC, runner.display_name ASC`,
-    [_req.user.sub, _req.user.organizationId]
+  // Runners are a shared operational pool. A dispatcher workspace identifies
+  // who created a task; it does not limit which runners can be selected.
+  const { rows: assignments } = await pool.query(
+    `SELECT runner.id, runner.display_name, runner.email,
+       EXISTS (
+         SELECT 1 FROM runner_assignments assignment
+         WHERE assignment.runner_id = runner.id
+           AND assignment.organization_id = runner.organization_id
+           AND assignment.active = true
+       ) AS active
+     FROM users runner
+     WHERE runner.organization_id = $1 AND runner.role = 'runner'
+       ${includeArchived ? "" : `AND EXISTS (
+         SELECT 1 FROM runner_assignments assignment
+         WHERE assignment.runner_id = runner.id
+           AND assignment.organization_id = runner.organization_id
+           AND assignment.active = true
+       )`}
+     ORDER BY runner.display_name ASC`,
+    [_req.user.organizationId],
   );
   const assignedRunners = new Map(
     assignments.map((runner) => [String(runner.id), runner])
@@ -356,12 +360,11 @@ apiRouter.patch("/runners/:id", requireAdmin, async (req: any, res) => {
 // Clear location data without deleting the runner's account or assignment.
 apiRouter.delete("/runners/:id/location-data", requireDispatcher, async (req: any, res) => {
   const runnerId = String(req.params.id);
-  const { rows: assignments } = await pool.query(
-    `SELECT 1 FROM runner_assignments
-     WHERE runner_id = $1 AND dispatcher_id = $2 AND organization_id = $3 AND active = true`,
-    [runnerId, req.user.sub, req.user.organizationId]
+  const { rows: runners } = await pool.query(
+    `SELECT 1 FROM users WHERE id = $1 AND organization_id = $2 AND role = 'runner'`,
+    [runnerId, req.user.organizationId]
   );
-  if (assignments.length === 0) return res.status(404).json({ error: "runner not found" });
+  if (runners.length === 0) return res.status(404).json({ error: "runner not found" });
 
   const deletedHistoryCount = await clearRunnerLocationData(runnerId);
   res.json({ ok: true, runnerId, deletedHistoryCount });
@@ -374,15 +377,10 @@ apiRouter.get("/runners/:id/history", requireDispatcher, async (req: any, res) =
     `SELECT h.lat, h.lon, h.accuracy, h.speed, h.bearing, h.altitude, h.battery, h.ts
      FROM location_history h
      JOIN users runner ON runner.id = h.runner_id
-     JOIN runner_assignments assignment
-       ON assignment.runner_id = runner.id
-      AND assignment.dispatcher_id = $3
-      AND assignment.organization_id = runner.organization_id
-      AND assignment.active = true
      WHERE h.runner_id = $1 AND runner.organization_id = $2
      ORDER BY ts DESC
-     LIMIT $4`,
-    [id, req.user.organizationId, req.user.sub, limit]
+     LIMIT $3`,
+    [id, req.user.organizationId, limit]
   );
   res.json({ runnerId: id, points: rows.reverse() });
 });
@@ -459,8 +457,8 @@ apiRouter.delete("/dispatch-operators/:id", requireAdmin, async (req: any, res) 
 
 apiRouter.get("/runners/:id/tasks", requireDispatcher, async (req: any, res) => {
   const runnerId = String(req.params.id);
-  const { rows: assignment } = await pool.query(`SELECT 1 FROM runner_assignments WHERE runner_id = $1 AND dispatcher_id = $2 AND organization_id = $3 AND active = true`, [runnerId, req.user.sub, req.user.organizationId]);
-  if (!assignment[0]) return res.status(404).json({ error: "runner not found" });
+  const { rows: runners } = await pool.query(`SELECT 1 FROM users WHERE id = $1 AND organization_id = $2 AND role = 'runner'`, [runnerId, req.user.organizationId]);
+  if (!runners[0]) return res.status(404).json({ error: "runner not found" });
   const { rows } = await pool.query(`SELECT * FROM runner_tasks WHERE organization_id = $1 AND runner_id = $2 AND status NOT IN ('completed', 'unable_to_complete') ORDER BY created_at DESC`, [req.user.organizationId, runnerId]);
   const tasks = await Promise.all(rows.map((row) => getTask(String(row.id), String(req.user.organizationId))));
   res.json({ tasks });
@@ -487,8 +485,8 @@ apiRouter.post("/runners/:id/tasks/with-attachments", requireDispatcher, (req: a
   const runnerId = String(req.params.id);
   const operator = await getActiveDispatchOperator(parsed.data.operatorId, String(req.user.organizationId));
   if (!operator) return res.status(400).json({ error: "select an active dispatcher before assigning a task" });
-  const { rows: assignment } = await pool.query(`SELECT 1 FROM runner_assignments WHERE runner_id = $1 AND dispatcher_id = $2 AND organization_id = $3 AND active = true`, [runnerId, req.user.sub, req.user.organizationId]);
-  if (!assignment[0]) return res.status(404).json({ error: "runner not found" });
+  const { rows: runners } = await pool.query(`SELECT 1 FROM users WHERE id = $1 AND organization_id = $2 AND role = 'runner'`, [runnerId, req.user.organizationId]);
+  if (!runners[0]) return res.status(404).json({ error: "runner not found" });
 
   const files = (req.files ?? []) as Express.Multer.File[];
   if (files.some((file) => !allowedAttachmentTypes.has(file.mimetype))) {
@@ -575,8 +573,8 @@ apiRouter.post("/runners/:id/tasks", requireDispatcher, async (req: any, res) =>
   const runnerId = String(req.params.id);
   const operator = await getActiveDispatchOperator(parsed.data.operatorId, String(req.user.organizationId));
   if (!operator) return res.status(400).json({ error: "select an active dispatcher before assigning a task" });
-  const { rows: assignment } = await pool.query(`SELECT 1 FROM runner_assignments WHERE runner_id = $1 AND dispatcher_id = $2 AND organization_id = $3 AND active = true`, [runnerId, req.user.sub, req.user.organizationId]);
-  if (!assignment[0]) return res.status(404).json({ error: "runner not found" });
+  const { rows: runners } = await pool.query(`SELECT 1 FROM users WHERE id = $1 AND organization_id = $2 AND role = 'runner'`, [runnerId, req.user.organizationId]);
+  if (!runners[0]) return res.status(404).json({ error: "runner not found" });
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -607,19 +605,20 @@ apiRouter.get("/tasks", requireUser, async (req: any, res) => {
   const scope = ["active", "completed", "incomplete"].includes(String(req.query.scope))
     ? String(req.query.scope)
     : "active";
-  const runnerFilter = req.user.role === "runner" ? "AND runner_id = $2" : "AND dispatcher_id = $2";
+  const runnerFilter = req.user.role === "runner" ? "AND runner_id = $2" : "";
   const statusFilter = scope === "completed"
     ? "AND status = 'completed'"
     : scope === "incomplete"
       ? "AND status = 'unable_to_complete'"
       : "AND status NOT IN ('completed', 'unable_to_complete')";
-  const { rows } = await pool.query(`SELECT * FROM runner_tasks WHERE organization_id = $1 ${runnerFilter} ${statusFilter} ORDER BY COALESCE(completed_at, created_at) DESC`, [req.user.organizationId, req.user.sub]);
+  const params = req.user.role === "runner" ? [req.user.organizationId, req.user.sub] : [req.user.organizationId];
+  const { rows } = await pool.query(`SELECT * FROM runner_tasks WHERE organization_id = $1 ${runnerFilter} ${statusFilter} ORDER BY COALESCE(completed_at, created_at) DESC`, params);
   const tasks = await Promise.all(rows.map((row) => getTask(String(row.id), String(req.user.organizationId))));
   res.json({ tasks });
 });
 
 apiRouter.get("/tasks/:id/attachments", requireUser, async (req: any, res) => {
-  const { rows: access } = await pool.query("SELECT 1 FROM runner_tasks WHERE id=$1 AND organization_id=$2 AND (runner_id=$3 OR (dispatcher_id=$3 AND $4='dispatcher'))", [req.params.id, req.user.organizationId, req.user.sub, req.user.role]);
+  const { rows: access } = await pool.query("SELECT 1 FROM runner_tasks WHERE id=$1 AND organization_id=$2 AND (runner_id=$3 OR $4='dispatcher')", [req.params.id, req.user.organizationId, req.user.sub, req.user.role]);
   if (!access[0]) return res.status(404).json({ error: "task not found" });
   const { rows } = await pool.query("SELECT id, original_name, content_type, size_bytes, created_at FROM runner_task_attachments WHERE task_id = $1 AND organization_id = $2 ORDER BY created_at DESC", [req.params.id, req.user.organizationId]);
   res.json({ attachments: rows.map((row) => ({ id: String(row.id), name: row.original_name, contentType: row.content_type, sizeBytes: Number(row.size_bytes), createdAt: row.created_at })) });
@@ -645,7 +644,7 @@ apiRouter.post("/tasks/:id/attachments", requireDispatcher, taskUpload.single("f
 
 apiRouter.get("/tasks/:id/attachments/:attachmentId/download", requireUser, async (req: any, res) => {
   if (!taskStorage) return res.status(503).json({ error: "document storage is not configured" });
-  const { rows: access } = await pool.query("SELECT 1 FROM runner_tasks WHERE id=$1 AND organization_id=$2 AND (runner_id=$3 OR (dispatcher_id=$3 AND $4='dispatcher'))", [req.params.id, req.user.organizationId, req.user.sub, req.user.role]);
+  const { rows: access } = await pool.query("SELECT 1 FROM runner_tasks WHERE id=$1 AND organization_id=$2 AND (runner_id=$3 OR $4='dispatcher')", [req.params.id, req.user.organizationId, req.user.sub, req.user.role]);
   if (!access[0]) return res.status(404).json({ error: "task not found" });
   const { rows } = await pool.query("SELECT storage_path FROM runner_task_attachments WHERE id = $1 AND task_id = $2 AND organization_id = $3", [req.params.attachmentId, req.params.id, req.user.organizationId]);
   if (!rows[0]) return res.status(404).json({ error: "attachment not found" });
@@ -660,7 +659,7 @@ apiRouter.delete("/tasks/:id/attachments/:attachmentId", requireDispatcher, asyn
     FROM runner_task_attachments attachment
     JOIN runner_tasks task ON task.id = attachment.task_id
     WHERE attachment.id = $1 AND attachment.task_id = $2 AND attachment.organization_id = $3
-      AND task.dispatcher_id = $4 AND task.status = 'sent'`, [req.params.attachmentId, req.params.id, req.user.organizationId, req.user.sub]);
+      AND task.status = 'sent'`, [req.params.attachmentId, req.params.id, req.user.organizationId]);
   if (!rows[0]) return res.status(404).json({ error: "attachment not found or task can no longer be edited" });
 
   const { error } = await taskStorage.storage.from(taskStorageBucket).remove([rows[0].storage_path]);
@@ -685,12 +684,11 @@ apiRouter.post("/tasks/:id/dispatch", requireDispatcher, async (req: any, res) =
 
   const nextRunnerId = parsed.data.runnerId ?? task.runnerId;
   if (parsed.data.runnerId) {
-    const { rows: assignment } = await pool.query(
-      `SELECT 1 FROM runner_assignments
-       WHERE runner_id = $1 AND dispatcher_id = $2 AND organization_id = $3 AND active = true`,
-      [nextRunnerId, req.user.sub, req.user.organizationId],
+    const { rows: runners } = await pool.query(
+      `SELECT 1 FROM users WHERE id = $1 AND organization_id = $2 AND role = 'runner'`,
+      [nextRunnerId, req.user.organizationId],
     );
-    if (!assignment[0]) return res.status(400).json({ error: "runner is not available to this dispatcher" });
+    if (!runners[0]) return res.status(400).json({ error: "runner is not available" });
   }
 
   const dueAtChanged = parsed.data.dueAt !== undefined && parsed.data.dueAt !== task.dueAt;
@@ -699,8 +697,8 @@ apiRouter.post("/tasks/:id/dispatch", requireDispatcher, async (req: any, res) =
 
   await pool.query(
     `UPDATE runner_tasks SET runner_id = $1, due_at = $2
-     WHERE id = $3 AND organization_id = $4 AND dispatcher_id = $5 AND status = 'sent'`,
-    [nextRunnerId, parsed.data.dueAt === undefined ? task.dueAt : parsed.data.dueAt, task.id, req.user.organizationId, req.user.sub],
+     WHERE id = $3 AND organization_id = $4 AND status = 'sent'`,
+    [nextRunnerId, parsed.data.dueAt === undefined ? task.dueAt : parsed.data.dueAt, task.id, req.user.organizationId],
   );
   const updated = await getTask(task.id, String(req.user.organizationId));
   const metadata = {
@@ -728,11 +726,11 @@ apiRouter.patch("/tasks/:id", requireUser, async (req: any, res) => {
     const { rows } = await pool.query(
       `UPDATE runner_tasks SET client_name = $1, client_address = $2, client_phone = $3, notes = $4,
        destination_lat = $5, destination_lon = $6, priority = $7, due_at = $8
-       WHERE id = $9 AND organization_id = $10 AND dispatcher_id = $11 AND status = 'sent'
+       WHERE id = $9 AND organization_id = $10 AND status = 'sent'
        RETURNING id`,
       [parsed.data.clientName, parsed.data.clientAddress, parsed.data.clientPhone, parsed.data.notes || null,
         parsed.data.destinationLat ?? null, parsed.data.destinationLon ?? null, parsed.data.priority, parsed.data.dueAt ?? null, req.params.id,
-        req.user.organizationId, req.user.sub]
+        req.user.organizationId]
     );
     if (!rows[0]) return res.status(409).json({ error: "only unacknowledged tasks can be edited" });
     await pool.query("DELETE FROM runner_task_documents WHERE task_id = $1", [req.params.id]);
@@ -763,18 +761,18 @@ apiRouter.patch("/tasks/:id", requireUser, async (req: any, res) => {
 apiRouter.get("/analytics/overview", requireDispatcher, async (req: any, res) => {
   const days = Math.min(Math.max(Number(req.query.days ?? 7), 1), 90);
   const runnerId = req.query.runnerId ? String(req.query.runnerId) : null;
-  const params: any[] = [req.user.organizationId, req.user.sub, days];
-  const filter = runnerId ? "AND t.runner_id = $4" : "";
+  const params: any[] = [req.user.organizationId, days];
+  const filter = runnerId ? "AND t.runner_id = $3" : "";
   if (runnerId) params.push(runnerId);
-  const joins = `FROM runner_tasks t JOIN runner_assignments a ON a.runner_id=t.runner_id AND a.dispatcher_id=$2 AND a.organization_id=t.organization_id`;
-  const where = `WHERE t.organization_id=$1 AND t.created_at >= now() - ($3::text || ' days')::interval ${filter}`;
+  const joins = `FROM runner_tasks t`;
+  const where = `WHERE t.organization_id=$1 AND t.created_at >= now() - ($2::text || ' days')::interval ${filter}`;
   const { rows: totals } = await pool.query(`SELECT count(*)::int assigned, count(*) FILTER (WHERE t.status='completed')::int completed, count(*) FILTER (WHERE t.status='unable_to_complete')::int unable, count(*) FILTER (WHERE t.due_at < now() AND t.status NOT IN ('completed','unable_to_complete'))::int overdue, percentile_cont(.5) WITHIN GROUP (ORDER BY extract(epoch FROM t.acknowledged_at-t.created_at)) FILTER (WHERE t.acknowledged_at IS NOT NULL) median_ack_seconds, percentile_cont(.5) WITHIN GROUP (ORDER BY extract(epoch FROM t.completed_at-t.created_at)) FILTER (WHERE t.completed_at IS NOT NULL) median_cycle_seconds ${joins} ${where}`, params);
   const { rows: byRunner } = await pool.query(`SELECT t.runner_id::text runner_id, u.display_name, count(*)::int assigned, count(*) FILTER (WHERE t.status='completed')::int completed, percentile_cont(.5) WITHIN GROUP (ORDER BY extract(epoch FROM t.completed_at-t.created_at)) FILTER (WHERE t.completed_at IS NOT NULL) median_cycle_seconds ${joins} JOIN users u ON u.id=t.runner_id ${where} GROUP BY t.runner_id,u.display_name ORDER BY completed DESC`, params);
   res.json({ days, totals: totals[0], byRunner });
 });
 
 apiRouter.get("/shifts", requireDispatcher, async (req: any, res) => {
-  const { rows } = await pool.query(`SELECT s.*, u.display_name FROM runner_shifts s JOIN users u ON u.id=s.runner_id JOIN runner_assignments a ON a.runner_id=s.runner_id AND a.dispatcher_id=$2 AND a.organization_id=s.organization_id AND a.active=true WHERE s.organization_id=$1 ORDER BY s.started_at DESC LIMIT 100`, [req.user.organizationId, req.user.sub]);
+  const { rows } = await pool.query(`SELECT s.*, u.display_name FROM runner_shifts s JOIN users u ON u.id=s.runner_id WHERE s.organization_id=$1 ORDER BY s.started_at DESC LIMIT 100`, [req.user.organizationId]);
   res.json({ shifts: rows.map((s) => ({ id:String(s.id), runnerId:String(s.runner_id), displayName:s.display_name, status:s.status, startedAt:s.started_at, endedAt:s.ended_at })) });
 });
 
@@ -793,9 +791,9 @@ apiRouter.post("/shifts/end", requireUser, async (req: any, res) => {
 
 apiRouter.delete("/tasks/:id", requireDispatcher, async (req: any, res) => {
   const { rows } = await pool.query(
-    `DELETE FROM runner_tasks WHERE id = $1 AND organization_id = $2 AND dispatcher_id = $3
+    `DELETE FROM runner_tasks WHERE id = $1 AND organization_id = $2
      AND status IN ('completed', 'unable_to_complete') RETURNING id`,
-    [req.params.id, req.user.organizationId, req.user.sub]
+    [req.params.id, req.user.organizationId]
   );
   if (!rows[0]) return res.status(409).json({ error: "only completed tasks can be deleted" });
   res.json({ ok: true, id: String(rows[0].id) });
