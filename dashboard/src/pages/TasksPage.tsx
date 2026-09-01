@@ -29,7 +29,6 @@ import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import ScheduleOutlinedIcon from "@mui/icons-material/ScheduleOutlined";
 import LocationOnOutlinedIcon from "@mui/icons-material/LocationOnOutlined";
-import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 import ViewListOutlinedIcon from "@mui/icons-material/ViewListOutlined";
 import ViewKanbanOutlinedIcon from "@mui/icons-material/ViewKanbanOutlined";
 import { api } from "../lib/auth";
@@ -70,10 +69,34 @@ function formatDate(value?: string | null) {
 
 function priorityTone(priority?: TaskPriority) {
   if (priority === "urgent")
-    return { border: "#dc2626", background: "#fef2f2", label: "Urgent" };
+    return {
+      border: "#b42318",
+      background: "#fee4e2",
+      color: "#7a271a",
+      label: "Urgent",
+    };
   if (priority === "high")
-    return { border: "#d97706", background: "#fffbeb", label: "High" };
-  return { border: "#64748b", background: "#f8fafc", label: "Normal" };
+    return {
+      border: "#b54708",
+      background: "#fef0c7",
+      color: "#6b3c00",
+      label: "High",
+    };
+  return {
+    border: "#475467",
+    background: "#eaecf0",
+    color: "#1d2939",
+    label: "Normal",
+  };
+}
+
+/** Keeps the single outcome pill readable without relying on colour alone. */
+function statusTone(status: TaskStatus) {
+  if (status === "completed") return { background: "#d1fadf", color: "#0f5132" };
+  if (status === "unable_to_complete") return { background: "#fee4e2", color: "#7a271a" };
+  if (status === "in_progress") return { background: "#d1e9ff", color: "#0b4a6f" };
+  if (status === "acknowledged") return { background: "#e9d7fe", color: "#432b6f" };
+  return { background: "#eaf2f8", color: "#17324d" };
 }
 
 /**
@@ -494,7 +517,6 @@ export default function TasksPage() {
                   <TaskRow
                     key={task.id}
                     task={task}
-                    runner={runners[task.runnerId]}
                     runnerName={runners[task.runnerId]?.displayName}
                     selected={task.id === selectedTask?.id}
                     onOpen={() => openTask(task.id)}
@@ -648,19 +670,17 @@ function TaskBoardView({
 
 function TaskRow({
   task,
-  runner,
   runnerName,
   selected,
   onOpen,
 }: {
   task: DispatcherTask;
-  runner?: DispatchRunner;
   runnerName?: string;
   selected: boolean;
   onOpen: () => void;
 }) {
   const priority = priorityTone(task.priority);
-  const health = taskHealth(task, runner);
+  const currentStatus = statusTone(task.status);
   const collected =
     task.documents?.filter((document) => document.collected).length ?? 0;
   const required = task.documents?.length ?? 0;
@@ -691,28 +711,22 @@ function TaskRow({
         },
       }}
     >
-      <Box sx={{ p: { xs: 1.75, sm: 2 }, background: `linear-gradient(135deg, ${priority.background} 0%, #fffdf8 100%)` }}>
+      <Box sx={{ p: { xs: 1.75, sm: 2 }, color: "#14213d", background: `linear-gradient(135deg, ${priority.background} 0%, #fffdf8 100%)` }}>
         <Stack direction="row" justifyContent="space-between" gap={1.5} alignItems="flex-start">
           <Typography fontWeight={800} sx={{ minWidth: 0, fontSize: { xs: "1.1rem", sm: "1.25rem" }, lineHeight: 1.25 }}>
             {task.clientName}
           </Typography>
-          <Chip size="small" label={priority.label} sx={{ flexShrink: 0, bgcolor: priority.background, fontWeight: 800 }} />
+          <Chip size="small" label={priority.label} sx={{ flexShrink: 0, bgcolor: priority.background, color: priority.color, border: `1px solid ${priority.border}`, fontWeight: 800 }} />
         </Stack>
 
         <Stack direction="row" gap={0.75} alignItems="flex-start" mt={1}>
-          <LocationOnOutlinedIcon fontSize="small" sx={{ mt: 0.1, color: "text.secondary", flexShrink: 0 }} />
-          <Typography variant="body2" color="text.secondary" sx={{ display: "-webkit-box", overflow: "hidden", overflowWrap: "anywhere", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 }}>
+          <LocationOnOutlinedIcon fontSize="small" sx={{ mt: 0.1, color: "#3e4c5a", flexShrink: 0 }} />
+          <Typography variant="body2" sx={{ color: "#3e4c5a", display: "-webkit-box", overflow: "hidden", overflowWrap: "anywhere", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 }}>
             {task.clientAddress}
           </Typography>
         </Stack>
 
-        <Chip
-          size="small"
-          label={`Assigned by · ${task.createdByOperatorName ?? "Unattributed"}`}
-          sx={{ mt: 1.25, maxWidth: "100%", bgcolor: "#eef6ff", border: "1px solid #c8def2", color: "#174d79", fontWeight: 750, "& .MuiChip-label": { overflow: "hidden", textOverflow: "ellipsis" } }}
-        />
-
-        <Stack direction="row" flexWrap="wrap" gap={1.25} mt={1.5} color="text.secondary" alignItems="center">
+        <Stack direction="row" flexWrap="wrap" gap={1.25} mt={1.5} sx={{ color: "#405066" }} alignItems="center">
           <Stack direction="row" gap={0.5} alignItems="center" minWidth={0}>
             <PersonOutlineIcon fontSize="small" />
             <Typography variant="caption" noWrap>{runnerName ?? "Unassigned"}</Typography>
@@ -725,17 +739,17 @@ function TaskRow({
             <AttachFileIcon fontSize="small" />
             <Typography variant="caption">{collected}/{required} docs</Typography>
           </Stack>
-          <Typography variant="caption" color="text.secondary" sx={{ ml: { sm: "auto" }, whiteSpace: "nowrap" }}>Task #{task.id}</Typography>
+          <Typography variant="caption" sx={{ ml: { sm: "auto" }, color: "#405066", whiteSpace: "nowrap" }}>Task #{task.id}</Typography>
         </Stack>
       </Box>
 
-      <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} gap={1} sx={{ borderTop: "1px solid #ece8df", px: { xs: 1.75, sm: 2 }, py: 1.25, bgcolor: "#fff" }}>
-        <Typography fontWeight={700} variant="body2">Final status and ID</Typography>
-        <Stack direction="row" flexWrap="wrap" gap={0.75} alignItems="center">
-          <Chip size="small" label={statusLabel[task.status]} sx={{ fontWeight: 750 }} />
-          <Typography aria-hidden="true" color="text.secondary" fontWeight={800}>⋮</Typography>
-          <Chip size="small" color={health.color} icon={health.color === "warning" || health.color === "error" ? <WarningAmberOutlinedIcon /> : undefined} label={health.label} />
-        </Stack>
+      <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} gap={1} sx={{ borderTop: "1px solid #e4e7ec", px: { xs: 1.75, sm: 2 }, py: 1.25, bgcolor: "#fff" }}>
+        <Chip
+          size="small"
+          label={`Assigned by · ${task.createdByOperatorName ?? "Unattributed"}`}
+          sx={{ maxWidth: "100%", bgcolor: "#eef6ff", border: "1px solid #a9cae8", color: "#164d7d", fontWeight: 800, "& .MuiChip-label": { overflow: "hidden", textOverflow: "ellipsis" } }}
+        />
+        <Chip size="small" label={statusLabel[task.status]} sx={{ flexShrink: 0, bgcolor: currentStatus.background, color: currentStatus.color, fontWeight: 800 }} />
       </Stack>
     </Paper>
   );
