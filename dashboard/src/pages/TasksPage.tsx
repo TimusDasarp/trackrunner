@@ -32,6 +32,7 @@ import LocationOnOutlinedIcon from "@mui/icons-material/LocationOnOutlined";
 import ViewListOutlinedIcon from "@mui/icons-material/ViewListOutlined";
 import ViewKanbanOutlinedIcon from "@mui/icons-material/ViewKanbanOutlined";
 import { api } from "../lib/auth";
+import TaskCard from "../components/TaskCard";
 import { useDispatcherSession } from "../lib/dispatcherSession";
 import { useRunners } from "../hooks/useRunners";
 import {
@@ -88,15 +89,6 @@ function priorityTone(priority?: TaskPriority) {
     color: "#1d2939",
     label: "Normal",
   };
-}
-
-/** Keeps the single outcome pill readable without relying on colour alone. */
-function statusTone(status: TaskStatus) {
-  if (status === "completed") return { background: "#d1fadf", color: "#0f5132" };
-  if (status === "unable_to_complete") return { background: "#fee4e2", color: "#7a271a" };
-  if (status === "in_progress") return { background: "#d1e9ff", color: "#0b4a6f" };
-  if (status === "acknowledged") return { background: "#e9d7fe", color: "#432b6f" };
-  return { background: "#eaf2f8", color: "#17324d" };
 }
 
 /**
@@ -514,7 +506,7 @@ export default function TasksPage() {
                 p={{ xs: 1, sm: 1.5 }}
               >
                 {visibleTasks.map((task) => (
-                  <TaskRow
+                  <TaskCard
                     key={task.id}
                     task={task}
                     runnerName={runners[task.runnerId]?.displayName}
@@ -665,93 +657,6 @@ function TaskBoardView({
         })}
       </Stack>
     </Box>
-  );
-}
-
-function TaskRow({
-  task,
-  runnerName,
-  selected,
-  onOpen,
-}: {
-  task: DispatcherTask;
-  runnerName?: string;
-  selected: boolean;
-  onOpen: () => void;
-}) {
-  const priority = priorityTone(task.priority);
-  const currentStatus = statusTone(task.status);
-  const collected =
-    task.documents?.filter((document) => document.collected).length ?? 0;
-  const required = task.documents?.length ?? 0;
-  return (
-    <Paper
-      component="button"
-      onClick={onOpen}
-      elevation={0}
-      sx={{
-        width: "100%",
-        minWidth: 0,
-        maxWidth: "100%",
-        height: "100%",
-        overflow: "hidden",
-        cursor: "pointer",
-        textAlign: "left",
-        border: "1px solid",
-        borderColor: selected ? "primary.main" : "#e3e1e9",
-        borderLeft: `4px solid ${priority.border}`,
-        p: 0,
-        bgcolor: "#fff",
-        boxSizing: "border-box",
-        display: "flex",
-        flexDirection: "column",
-        "&:hover": {
-          borderColor: "primary.main",
-          boxShadow: "0 4px 18px rgba(0,55,102,.08)",
-        },
-      }}
-    >
-      <Box sx={{ p: { xs: 1.75, sm: 2 }, color: "#14213d", background: `linear-gradient(135deg, ${priority.background} 0%, #fffdf8 100%)` }}>
-        <Stack direction="row" justifyContent="space-between" gap={1.5} alignItems="flex-start">
-          <Typography fontWeight={800} sx={{ minWidth: 0, fontSize: { xs: "1.1rem", sm: "1.25rem" }, lineHeight: 1.25 }}>
-            {task.clientName}
-          </Typography>
-          <Chip size="small" label={priority.label} sx={{ flexShrink: 0, bgcolor: priority.background, color: priority.color, border: `1px solid ${priority.border}`, fontWeight: 800 }} />
-        </Stack>
-
-        <Stack direction="row" gap={0.75} alignItems="flex-start" mt={1}>
-          <LocationOnOutlinedIcon fontSize="small" sx={{ mt: 0.1, color: "#3e4c5a", flexShrink: 0 }} />
-          <Typography variant="body2" sx={{ color: "#3e4c5a", display: "-webkit-box", overflow: "hidden", overflowWrap: "anywhere", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 }}>
-            {task.clientAddress}
-          </Typography>
-        </Stack>
-
-        <Stack direction="row" flexWrap="wrap" gap={1.25} mt={1.5} sx={{ color: "#405066" }} alignItems="center">
-          <Stack direction="row" gap={0.5} alignItems="center" minWidth={0}>
-            <PersonOutlineIcon fontSize="small" />
-            <Typography variant="caption" noWrap>{runnerName ?? "Unassigned"}</Typography>
-          </Stack>
-          <Stack direction="row" gap={0.5} alignItems="center">
-            <ScheduleOutlinedIcon fontSize="small" />
-            <Typography variant="caption">{formatDate(task.dueAt)}</Typography>
-          </Stack>
-          <Stack direction="row" gap={0.5} alignItems="center">
-            <AttachFileIcon fontSize="small" />
-            <Typography variant="caption">{collected}/{required} docs</Typography>
-          </Stack>
-          <Typography variant="caption" sx={{ ml: { sm: "auto" }, color: "#405066", whiteSpace: "nowrap" }}>Task #{task.id}</Typography>
-        </Stack>
-      </Box>
-
-      <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} gap={1} sx={{ borderTop: "1px solid #e4e7ec", px: { xs: 1.75, sm: 2 }, py: 1.25, bgcolor: "#fff" }}>
-        <Chip
-          size="small"
-          label={`Assigned by · ${task.createdByOperatorName ?? "Unattributed"}`}
-          sx={{ maxWidth: "100%", bgcolor: "#eef6ff", border: "1px solid #a9cae8", color: "#164d7d", fontWeight: 800, "& .MuiChip-label": { overflow: "hidden", textOverflow: "ellipsis" } }}
-        />
-        <Chip size="small" label={statusLabel[task.status]} sx={{ flexShrink: 0, bgcolor: currentStatus.background, color: currentStatus.color, fontWeight: 800 }} />
-      </Stack>
-    </Paper>
   );
 }
 
