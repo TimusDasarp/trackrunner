@@ -28,6 +28,7 @@ import AttachFileIcon from "@mui/icons-material/AttachFile";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import ScheduleOutlinedIcon from "@mui/icons-material/ScheduleOutlined";
+import LocationOnOutlinedIcon from "@mui/icons-material/LocationOnOutlined";
 import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 import ViewListOutlinedIcon from "@mui/icons-material/ViewListOutlined";
 import ViewKanbanOutlinedIcon from "@mui/icons-material/ViewKanbanOutlined";
@@ -679,8 +680,8 @@ function TaskRow({
         border: "1px solid",
         borderColor: selected ? "primary.main" : "#e3e1e9",
         borderLeft: `4px solid ${priority.border}`,
-        p: 1.5,
-        bgcolor: selected ? "#f5faff" : "#fff",
+        p: 0,
+        bgcolor: "#fff",
         boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
@@ -690,103 +691,51 @@ function TaskRow({
         },
       }}
     >
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        justifyContent="space-between"
-        gap={1}
-        alignItems="flex-start"
-      >
-        <div style={{ minWidth: 0 }}>
-          <Typography fontWeight={800} noWrap>
+      <Box sx={{ p: { xs: 1.75, sm: 2 }, background: `linear-gradient(135deg, ${priority.background} 0%, #fffdf8 100%)` }}>
+        <Stack direction="row" justifyContent="space-between" gap={1.5} alignItems="flex-start">
+          <Typography fontWeight={800} sx={{ minWidth: 0, fontSize: { xs: "1.1rem", sm: "1.25rem" }, lineHeight: 1.25 }}>
             {task.clientName}
           </Typography>
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{
-              display: "-webkit-box",
-              overflow: "hidden",
-              overflowWrap: "anywhere",
-              WebkitBoxOrient: "vertical",
-              WebkitLineClamp: { xs: 2, sm: 1 },
-            }}
-          >
+          <Chip size="small" label={priority.label} sx={{ flexShrink: 0, bgcolor: priority.background, fontWeight: 800 }} />
+        </Stack>
+
+        <Stack direction="row" gap={0.75} alignItems="flex-start" mt={1}>
+          <LocationOnOutlinedIcon fontSize="small" sx={{ mt: 0.1, color: "text.secondary", flexShrink: 0 }} />
+          <Typography variant="body2" color="text.secondary" sx={{ display: "-webkit-box", overflow: "hidden", overflowWrap: "anywhere", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 }}>
             {task.clientAddress}
           </Typography>
-        </div>
-        <Stack
-          direction="row"
-          gap={0.75}
-          flexWrap="wrap"
-          minWidth={0}
-          justifyContent={{ xs: "flex-start", sm: "flex-end" }}
-        >
-          <Chip
-            size="small"
-            label={priority.label}
-            sx={{ bgcolor: priority.background, fontWeight: 700 }}
-          />
-          <Chip size="small" label={statusLabel[task.status]} />
         </Stack>
-      </Stack>
-      <Chip
-        size="small"
-        label={`Assigned by · ${task.createdByOperatorName ?? "Unattributed"}`}
-        sx={{
-          mt: 1,
-          alignSelf: "flex-start",
-          maxWidth: "100%",
-          bgcolor: "#eef6ff",
-          border: "1px solid #c8def2",
-          color: "#174d79",
-          fontWeight: 750,
-          "& .MuiChip-label": { overflow: "hidden", textOverflow: "ellipsis" },
-        }}
-      />
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        gap={1.25}
-        mt={1.25}
-        color="text.secondary"
-      >
-        <Stack direction="row" gap={0.5} alignItems="center" minWidth={0}>
-          <PersonOutlineIcon fontSize="small" />
-          <Typography variant="caption" noWrap>
-            {runnerName ?? "Unassigned"}
-          </Typography>
-        </Stack>
-        <Stack direction="row" gap={0.5} alignItems="center">
-          <ScheduleOutlinedIcon fontSize="small" />
-          <Typography variant="caption">{formatDate(task.dueAt)}</Typography>
-        </Stack>
-        <Stack direction="row" gap={0.5} alignItems="center">
-          <AttachFileIcon fontSize="small" />
-          <Typography variant="caption">
-            {collected}/{required} docs
-          </Typography>
-        </Stack>
-      </Stack>
-      <Stack
-        direction="row"
-        flexWrap="wrap"
-        justifyContent="space-between"
-        alignItems="center"
-        mt={1.25}
-        gap={0.75}
-      >
+
         <Chip
           size="small"
-          color={health.color}
-          icon={
-            health.color === "warning" || health.color === "error" ? (
-              <WarningAmberOutlinedIcon />
-            ) : undefined
-          }
-          label={health.label}
+          label={`Assigned by · ${task.createdByOperatorName ?? "Unattributed"}`}
+          sx={{ mt: 1.25, maxWidth: "100%", bgcolor: "#eef6ff", border: "1px solid #c8def2", color: "#174d79", fontWeight: 750, "& .MuiChip-label": { overflow: "hidden", textOverflow: "ellipsis" } }}
         />
-        <Typography variant="caption" color="text.secondary">
-          Task #{task.id}
-        </Typography>
+
+        <Stack direction="row" flexWrap="wrap" gap={1.25} mt={1.5} color="text.secondary" alignItems="center">
+          <Stack direction="row" gap={0.5} alignItems="center" minWidth={0}>
+            <PersonOutlineIcon fontSize="small" />
+            <Typography variant="caption" noWrap>{runnerName ?? "Unassigned"}</Typography>
+          </Stack>
+          <Stack direction="row" gap={0.5} alignItems="center">
+            <ScheduleOutlinedIcon fontSize="small" />
+            <Typography variant="caption">{formatDate(task.dueAt)}</Typography>
+          </Stack>
+          <Stack direction="row" gap={0.5} alignItems="center">
+            <AttachFileIcon fontSize="small" />
+            <Typography variant="caption">{collected}/{required} docs</Typography>
+          </Stack>
+          <Typography variant="caption" color="text.secondary" sx={{ ml: { sm: "auto" }, whiteSpace: "nowrap" }}>Task #{task.id}</Typography>
+        </Stack>
+      </Box>
+
+      <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} gap={1} sx={{ borderTop: "1px solid #ece8df", px: { xs: 1.75, sm: 2 }, py: 1.25, bgcolor: "#fff" }}>
+        <Typography fontWeight={700} variant="body2">Final status and ID</Typography>
+        <Stack direction="row" flexWrap="wrap" gap={0.75} alignItems="center">
+          <Chip size="small" label={statusLabel[task.status]} sx={{ fontWeight: 750 }} />
+          <Typography aria-hidden="true" color="text.secondary" fontWeight={800}>⋮</Typography>
+          <Chip size="small" color={health.color} icon={health.color === "warning" || health.color === "error" ? <WarningAmberOutlinedIcon /> : undefined} label={health.label} />
+        </Stack>
       </Stack>
     </Paper>
   );

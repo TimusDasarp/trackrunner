@@ -15,6 +15,7 @@ async function main() {
     ["runner@demo.local", password, "runner1@demo.local", "runner2@demo.local", "runner3@demo.local", "dispatcher@demo.local"]
   );
 
+
   await pool.query(
     `INSERT INTO runner_assignments (dispatcher_id, runner_id, organization_id)
      SELECT dispatcher.id, runner.id, dispatcher.organization_id
