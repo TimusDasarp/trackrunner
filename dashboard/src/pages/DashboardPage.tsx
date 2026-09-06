@@ -4,6 +4,7 @@ import RunnerMap from "../components/RunnerMap";
 import RunnerList from "../components/RunnerList";
 import RunnerDetail from "../components/RunnerDetail";
 import TaskBoard, { type Task as BoardTask } from "../components/TaskBoard";
+import TaskCard from "../components/TaskCard";
 import AddressPicker, { type AddressPin } from "../components/AddressPicker";
 import { api, getToken } from "../lib/auth";
 import { apiUrl } from "../lib/config";
@@ -13,9 +14,6 @@ import { useDispatcherSession } from "../lib/dispatcherSession";
 import { Card } from "@material-tailwind/react";
 import { Alert, Dialog, DialogContent, DialogTitle, Snackbar } from "@mui/material";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import AttachFileIcon from "@mui/icons-material/AttachFile";
-import LocationOnOutlinedIcon from "@mui/icons-material/LocationOnOutlined";
-import ScheduleOutlinedIcon from "@mui/icons-material/ScheduleOutlined";
 
 type RunnerForm = { email: string; password: string; displayName: string };
 type TaskForm = {
@@ -359,16 +357,6 @@ export default function DashboardPage() {
       ),
     [runners, now],
   );
-
-  function openRename(runner: RunnerState) {
-    setForm({
-      email: runner.email,
-      password: "",
-      displayName: runner.displayName,
-    });
-    setFormError(null);
-    setFormMode("rename");
-  }
 
   async function openTask(runner: RunnerState) {
     setTaskRunner(runner);
@@ -729,7 +717,6 @@ export default function DashboardPage() {
               </div>
               <RunnerDetail
                 runner={selected}
-                onRename={openRename}
                 onCreateTask={openTask}
               >
                 <TaskBoard
@@ -775,28 +762,19 @@ export default function DashboardPage() {
           </div>
           <div className="min-h-0 space-y-2 overflow-y-auto p-3">
             <div className="px-1 text-xs font-semibold text-on-surface-variant">Unassigned tasks · {boardTasks.filter((task) => task.status === "unassigned").length}</div>
-            {boardTasks.filter((task) => task.status === "unassigned").map((task) => {
-              const documents = task.documents?.length ?? 0;
-              const priority = task.priority === "urgent" ? "Urgent" : task.priority === "high" ? "High" : "Normal";
-              return <div key={task.id} className="overflow-hidden rounded-2xl border border-border border-l-4 border-l-slate-500 bg-surface">
-                <div className="p-3">
-                  <div className="flex items-start justify-between gap-2"><div className="min-w-0 truncate text-sm font-semibold text-ink">{task.clientName}</div><span className="rounded-full border border-slate-500 px-2 py-0.5 text-[11px] font-semibold text-slate-700">{priority}</span></div>
-                  <div className="mt-2 flex items-start gap-1.5 text-xs text-on-surface-variant"><LocationOnOutlinedIcon sx={{ fontSize: 16, flexShrink: 0 }} /><p className="line-clamp-2">{task.clientAddress}</p></div>
-                  <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-on-surface-variant">
-                    <span className="inline-flex items-center gap-1"><ScheduleOutlinedIcon sx={{ fontSize: 15 }} />{task.dueAt ? new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }).format(new Date(task.dueAt)) : "No schedule"}</span>
-                    <span className="inline-flex items-center gap-1"><AttachFileIcon sx={{ fontSize: 15 }} />0/{documents} docs</span>
-                    <span className="ml-auto whitespace-nowrap">Task #{task.id}</span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2"><span className="max-w-[62%] truncate rounded-full border border-[#a9cae8] bg-[#eef6ff] px-2 py-0.5 text-[11px] font-semibold text-[#164d7d]">Assigned by · {task.createdByOperatorName ?? "Unattributed"}</span><span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">Unassigned</span></div>
-                <label className="block border-t border-border px-3 py-2 text-[11px] font-semibold text-ink">Assign to runner
+            {boardTasks.filter((task) => task.status === "unassigned").map((task) => (
+              <TaskCard
+                key={task.id}
+                task={task as import("../lib/taskWorkspace").DispatcherTask}
+                runnerName="Unassigned"
+                actions={<label className="block text-xs font-semibold text-ink">Assign to runner
                   <select defaultValue="" onChange={(event) => assignUnassignedTask(task.id, event.target.value)} className="mt-1 h-9 w-full rounded-lg border border-border bg-surface px-2 text-xs font-normal text-ink">
                     <option value="" disabled>Select a runner</option>
                     {Object.values(runners).filter((runner) => runner.assignmentActive !== false).map((runner) => <option key={runner.runnerId} value={runner.runnerId}>{runner.displayName}</option>)}
                   </select>
-                </label>
-              </div>;
-            })}
+                </label>}
+              />
+            ))}
             {boardTasks.filter((task) => task.status === "unassigned").length === 0 && <p className="px-1 py-5 text-center text-xs text-on-surface-variant">No unassigned tasks right now.</p>}
           </div>
         </Card>
