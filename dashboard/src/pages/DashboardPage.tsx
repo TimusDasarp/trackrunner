@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRunners } from "../hooks/useRunners";
 import RunnerMap from "../components/RunnerMap";
 import RunnerList from "../components/RunnerList";
@@ -215,6 +215,7 @@ export default function DashboardPage() {
     "active",
   );
   const [boardTasks, setBoardTasks] = useState<DashboardTask[]>([]);
+  const [unassignedTasks, setUnassignedTasks] = useState<DashboardTask[]>([]);
   const [pendingDeletion, setPendingDeletion] = useState<DashboardTask | null>(
     null,
   );
@@ -264,11 +265,38 @@ export default function DashboardPage() {
 
   const selected = selectedId ? (runners[selectedId] ?? null) : null;
 
+  // The open queue must not share state with the runner-history tabs below.
+  // Active/completed/incomplete is a view preference; unassigned work remains
+  // actionable regardless of which history tab the dispatcher is reviewing.
+  const refreshUnassignedTasks = useCallback(async () => {
+    try {
+      const response = await api<{ tasks: DashboardTask[] }>("/api/tasks?scope=active");
+      setUnassignedTasks((response.tasks ?? []).filter((task) => task.status === "unassigned"));
+    } catch {
+      setUnassignedTasks([]);
+    }
+  }, []);
+
   useEffect(() => {
     api<{ tasks: DashboardTask[] }>(`/api/tasks?scope=${taskTab}`)
       .then((response) => setBoardTasks(response.tasks ?? []))
       .catch(() => setBoardTasks([]));
   }, [taskTab]);
+
+  useEffect(() => {
+    void refreshUnassignedTasks();
+  }, [refreshUnassignedTasks]);
+
+  useEffect(() => {
+    const socket = getSocket();
+    const refreshQueue = () => void refreshUnassignedTasks();
+    socket.on("task:created", refreshQueue);
+    socket.on("task:updated", refreshQueue);
+    return () => {
+      socket.off("task:created", refreshQueue);
+      socket.off("task:updated", refreshQueue);
+    };
+  }, [refreshUnassignedTasks]);
 
   useEffect(() => {
     const socket = getSocket();
@@ -495,6 +523,7 @@ export default function DashboardPage() {
         body: JSON.stringify({ runnerId, reason: "Assigned from the unassigned queue" }),
       });
       setBoardTasks((current) => current.map((task) => task.id === taskId ? result.task : task));
+      setUnassignedTasks((current) => current.filter((task) => task.id !== taskId));
     } catch (error: any) {
       setTaskError(error.message ?? "Could not assign this task");
     }
@@ -559,6 +588,12 @@ export default function DashboardPage() {
           result.task,
           ...current.filter((task) => task.id !== result.task.id),
         ]);
+        if (result.task.status === "unassigned") {
+          setUnassignedTasks((current) => [
+            result.task,
+            ...current.filter((task) => task.id !== result.task.id),
+          ]);
+        }
       }
       setTaskAttachments([]);
       setTaskSubmissionKey(null);
@@ -761,8 +796,8 @@ export default function DashboardPage() {
             <button type="button" onClick={openUnassignedTask} className="mt-3 min-h-10 rounded-full bg-accent px-4 text-xs font-semibold text-white shadow-sm hover:bg-[#294b7a]">+ Create task</button>
           </div>
           <div className="min-h-0 space-y-2 overflow-y-auto p-3">
-            <div className="px-1 text-xs font-semibold text-on-surface-variant">Unassigned tasks · {boardTasks.filter((task) => task.status === "unassigned").length}</div>
-            {boardTasks.filter((task) => task.status === "unassigned").map((task) => (
+            <div className="px-1 text-xs font-semibold text-on-surface-variant">Unassigned tasks · {unassignedTasks.length}</div>
+            {unassignedTasks.map((task) => (
               <TaskCard
                 key={task.id}
                 task={task as import("../lib/taskWorkspace").DispatcherTask}
@@ -775,7 +810,7 @@ export default function DashboardPage() {
                 </label>}
               />
             ))}
-            {boardTasks.filter((task) => task.status === "unassigned").length === 0 && <p className="px-1 py-5 text-center text-xs text-on-surface-variant">No unassigned tasks right now.</p>}
+            {unassignedTasks.length === 0 && <p className="px-1 py-5 text-center text-xs text-on-surface-variant">No unassigned tasks right now.</p>}
           </div>
         </Card>
       </main>
