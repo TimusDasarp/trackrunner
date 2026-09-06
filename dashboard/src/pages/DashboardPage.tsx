@@ -103,13 +103,6 @@ const allowedAttachmentTypes = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 
-function waitForOnline(): Promise<void> {
-  if (navigator.onLine) return Promise.resolve();
-  return new Promise((resolve) =>
-    window.addEventListener("online", () => resolve(), { once: true }),
-  );
-}
-
 function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
@@ -121,25 +114,21 @@ async function fetchWithNetworkRetry(
 ): Promise<Response> {
   const attempts = 3;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    if (!navigator.onLine) {
-      onRetry(
-        "Connection lost. Waiting for internet to retry task assignment…",
-      );
-      await waitForOnline();
-    }
     try {
       return await fetch(url, options);
-    } catch (error) {
+    } catch {
       if (attempt === attempts - 1) {
         throw new Error(
           "Could not reach the server. Your task was not created; please try again when connected.",
         );
       }
       onRetry(
-        `Connection interrupted. Retrying task assignment (${attempt + 1}/${attempts - 1})…`,
+        `${navigator.onLine ? "Connection interrupted" : "Browser reports a lost connection"}. Retrying task assignment (${attempt + 1}/${attempts - 1})…`,
       );
-      if (!navigator.onLine) await waitForOnline();
-      else await wait(1_000 * (attempt + 1));
+      // navigator.onLine is only a browser hint. A VPN, captive portal, or
+      // failed CORS preflight can set it false even while the API is reachable.
+      // Always make bounded attempts instead of waiting forever for `online`.
+      await wait(1_000 * (attempt + 1));
     }
   }
   throw new Error("Could not reach the server.");
