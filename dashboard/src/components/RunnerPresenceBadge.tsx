@@ -6,8 +6,8 @@ import { getRunnerStatus } from "../lib/types";
 
 type Props = {
   runner: RunnerState;
-  /** Compact labels fit the roster; detail mode adds the exact update time. */
-  detail?: boolean;
+  /** The roster carries device telemetry; the detail header can stay minimal. */
+  showBattery?: boolean;
 };
 
 const appearance: Record<RunnerStatus, { label: string; className: string }> = {
@@ -32,7 +32,7 @@ function BatteryIndicator({ battery }: { battery: number | null | undefined }) {
 }
 
 /** One accessible status treatment used in the runner roster and detail header. */
-export default function RunnerPresenceBadge({ runner, detail = false }: Props) {
+export default function RunnerPresenceBadge({ runner, showBattery = true }: Props) {
   const status = getRunnerStatus(runner);
   const tone = appearance[status];
   const battery = runner.battery == null ? "Battery unavailable" : `${Math.round(runner.battery)}% battery`;
@@ -45,11 +45,10 @@ export default function RunnerPresenceBadge({ runner, detail = false }: Props) {
     >
       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden="true" />
       <span>{tone.label}</span>
-      {detail && <span className="border-l border-current/20 pl-1.5 font-medium">{updateLabel(runner.ts).replace("Updated ", "")}</span>}
-      <span className="ml-0.5 inline-flex items-center gap-0.5 border-l border-current/20 pl-1.5">
+      {showBattery && <span className="ml-0.5 inline-flex items-center gap-0.5 border-l border-current/20 pl-1.5">
         <BatteryIndicator battery={runner.battery} />
         <span>{runner.battery == null ? "—" : `${Math.round(runner.battery)}%`}</span>
-      </span>
+      </span>}
     </span>
   );
 }
