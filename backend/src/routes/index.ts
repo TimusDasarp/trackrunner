@@ -170,7 +170,7 @@ function requireAdmin(req: any, res: any, next: any) {
 
 function taskDto(row: any) {
   return {
-    id: String(row.id), runnerId: String(row.runner_id), clientName: row.client_name,
+    id: String(row.id), runnerId: row.runner_id == null ? "" : String(row.runner_id), clientName: row.client_name,
     clientAddress: row.client_address, clientPhone: row.client_phone, notes: row.notes,
     status: row.status, destinationLat: row.destination_lat, destinationLon: row.destination_lon, createdAt: row.created_at, acknowledgedAt: row.acknowledged_at,
     startedAt: row.started_at, completedAt: row.completed_at, priority: row.priority, dueAt: row.due_at, incompleteReason: row.incomplete_reason, incompleteNote: row.incomplete_note,
@@ -483,10 +483,13 @@ apiRouter.post("/runners/:id/tasks/with-attachments", requireDispatcher, (req: a
   if (!parsed.success) return res.status(400).json({ error: "invalid task details" });
 
   const runnerId = String(req.params.id);
+  const isUnassigned = runnerId === "unassigned";
   const operator = await getActiveDispatchOperator(parsed.data.operatorId, String(req.user.organizationId));
   if (!operator) return res.status(400).json({ error: "select an active dispatcher before assigning a task" });
-  const { rows: runners } = await pool.query(`SELECT 1 FROM users WHERE id = $1 AND organization_id = $2 AND role = 'runner'`, [runnerId, req.user.organizationId]);
-  if (!runners[0]) return res.status(404).json({ error: "runner not found" });
+  if (!isUnassigned) {
+    const { rows: runners } = await pool.query(`SELECT 1 FROM users WHERE id = $1 AND organization_id = $2 AND role = 'runner'`, [runnerId, req.user.organizationId]);
+    if (!runners[0]) return res.status(404).json({ error: "runner not found" });
+  }
 
   const files = (req.files ?? []) as Express.Multer.File[];
   if (files.some((file) => !allowedAttachmentTypes.has(file.mimetype))) {
@@ -532,7 +535,7 @@ apiRouter.post("/runners/:id/tasks/with-attachments", requireDispatcher, (req: a
   let committed = false;
   try {
     await client.query("BEGIN");
-    const { rows } = await client.query(`INSERT INTO runner_tasks (organization_id, dispatcher_id, created_by_operator_id, runner_id, client_name, client_address, client_phone, notes, destination_lat, destination_lon, priority, due_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`, [req.user.organizationId, req.user.sub, operator.id, runnerId, parsed.data.clientName, parsed.data.clientAddress, parsed.data.clientPhone, parsed.data.notes || null, parsed.data.destinationLat ?? null, parsed.data.destinationLon ?? null, parsed.data.priority, parsed.data.dueAt ?? null]);
+    const { rows } = await client.query(`INSERT INTO runner_tasks (organization_id, dispatcher_id, created_by_operator_id, runner_id, client_name, client_address, client_phone, notes, destination_lat, destination_lon, priority, due_at, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`, [req.user.organizationId, req.user.sub, operator.id, isUnassigned ? null : runnerId, parsed.data.clientName, parsed.data.clientAddress, parsed.data.clientPhone, parsed.data.notes || null, parsed.data.destinationLat ?? null, parsed.data.destinationLon ?? null, parsed.data.priority, parsed.data.dueAt ?? null, isUnassigned ? "unassigned" : "sent"]);
     const taskId = String(rows[0].id);
     for (const document of [...new Set(parsed.data.documents)]) await client.query("INSERT INTO runner_task_documents (task_id, name) VALUES ($1, $2)", [taskId, document]);
 
@@ -550,7 +553,7 @@ apiRouter.post("/runners/:id/tasks/with-attachments", requireDispatcher, (req: a
     await client.query("COMMIT");
     committed = true;
     const task = await getTask(taskId, String(req.user.organizationId));
-    publishCreatedTask(req, task, runnerId);
+    if (!isUnassigned) publishCreatedTask(req, task, runnerId);
     res.status(201).json({ task });
   } catch (error) {
     if (!committed) {
@@ -677,12 +680,13 @@ apiRouter.post("/tasks/:id/dispatch", requireDispatcher, async (req: any, res) =
   if (!parsed.success) return res.status(400).json({ error: "invalid dispatch update" });
 
   const task = await getTask(String(req.params.id), String(req.user.organizationId));
-  if (!task || task.runnerId == null) return res.status(404).json({ error: "task not found" });
-  if (task.status !== "sent") {
-    return res.status(409).json({ error: "only unacknowledged tasks can be reassigned or rescheduled" });
+  if (!task) return res.status(404).json({ error: "task not found" });
+  if (task.status !== "sent" && task.status !== "unassigned") {
+    return res.status(409).json({ error: "only unacknowledged or unassigned tasks can be reassigned or rescheduled" });
   }
 
   const nextRunnerId = parsed.data.runnerId ?? task.runnerId;
+  if (!nextRunnerId) return res.status(400).json({ error: "select a runner before dispatching this task" });
   if (parsed.data.runnerId) {
     const { rows: runners } = await pool.query(
       `SELECT 1 FROM users WHERE id = $1 AND organization_id = $2 AND role = 'runner'`,
@@ -696,8 +700,9 @@ apiRouter.post("/tasks/:id/dispatch", requireDispatcher, async (req: any, res) =
   if (!runnerChanged && !dueAtChanged) return res.json({ task, unchanged: true });
 
   await pool.query(
-    `UPDATE runner_tasks SET runner_id = $1, due_at = $2
-     WHERE id = $3 AND organization_id = $4 AND status = 'sent'`,
+    `UPDATE runner_tasks SET runner_id = $1, due_at = $2,
+       status = CASE WHEN status = 'unassigned' THEN 'sent' ELSE status END
+     WHERE id = $3 AND organization_id = $4 AND status IN ('sent', 'unassigned')`,
     [nextRunnerId, parsed.data.dueAt === undefined ? task.dueAt : parsed.data.dueAt, task.id, req.user.organizationId],
   );
   const updated = await getTask(task.id, String(req.user.organizationId));
@@ -712,9 +717,9 @@ apiRouter.post("/tasks/:id/dispatch", requireDispatcher, async (req: any, res) =
 
   // Notify both devices. The previous runner receives the same updated task,
   // allowing their client to remove it during its normal task reconciliation.
-  req.app.get("io").to(`runner:${task.runnerId}`).emit("task:updated", updated);
+  if (task.runnerId) req.app.get("io").to(`runner:${task.runnerId}`).emit("task:updated", updated);
   req.app.get("io").to(`runner:${nextRunnerId}`).emit("task:updated", updated);
-  req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${task.runnerId}`).emit("task:updated", updated);
+  if (task.runnerId) req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${task.runnerId}`).emit("task:updated", updated);
   req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${nextRunnerId}`).emit("task:updated", updated);
   res.json({ task: updated });
 });

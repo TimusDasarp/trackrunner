@@ -123,6 +123,12 @@ ALTER TABLE runner_tasks ADD COLUMN IF NOT EXISTS incomplete_reason TEXT;
 ALTER TABLE runner_tasks ADD COLUMN IF NOT EXISTS incomplete_note TEXT;
 ALTER TABLE runner_tasks ADD COLUMN IF NOT EXISTS created_by_operator_id INTEGER REFERENCES dispatch_operators(id) ON DELETE RESTRICT;
 CREATE INDEX IF NOT EXISTS idx_runner_tasks_created_by_operator ON runner_tasks (created_by_operator_id, created_at DESC);
+-- Tasks can be prepared before a runner is chosen. They remain in the shared
+-- dispatch queue with status 'unassigned' until a dispatcher assigns them.
+ALTER TABLE runner_tasks ALTER COLUMN runner_id DROP NOT NULL;
+ALTER TABLE runner_tasks DROP CONSTRAINT IF EXISTS runner_tasks_status_check;
+ALTER TABLE runner_tasks ADD CONSTRAINT runner_tasks_status_check
+  CHECK (status IN ('unassigned', 'sent', 'acknowledged', 'in_progress', 'completed', 'unable_to_complete'));
 
 CREATE TABLE IF NOT EXISTS task_events (
   id BIGSERIAL PRIMARY KEY, organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,

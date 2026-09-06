@@ -1,6 +1,6 @@
 /** Shared task-workspace rules. Keeping these pure makes dispatcher decisions
  * predictable in the UI and straightforward to verify with automated tests. */
-export type TaskStatus = "sent" | "acknowledged" | "in_progress" | "completed" | "unable_to_complete";
+export type TaskStatus = "unassigned" | "sent" | "acknowledged" | "in_progress" | "completed" | "unable_to_complete";
 export type TaskPriority = "normal" | "high" | "urgent";
 
 export type TaskDocument = { id?: string; name: string; collected?: boolean };
@@ -37,6 +37,7 @@ export type DispatchRunner = {
 };
 
 export const statusLabel: Record<TaskStatus, string> = {
+  unassigned: "Unassigned",
   sent: "Assigned",
   acknowledged: "Acknowledged",
   in_progress: "In progress",

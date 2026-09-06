@@ -205,6 +205,7 @@ export default function DashboardPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [formBusy, setFormBusy] = useState(false);
   const [taskRunner, setTaskRunner] = useState<RunnerState | null>(null);
+  const [isCreatingUnassigned, setIsCreatingUnassigned] = useState(false);
   const [editingTask, setEditingTask] = useState<DashboardTask | null>(null);
   const [taskForm, setTaskForm] = useState<TaskForm>(emptyTaskForm);
   const [documentTypes, setDocumentTypes] = useState<string[]>([]);
@@ -379,6 +380,7 @@ export default function DashboardPage() {
 
   async function openTask(runner: RunnerState) {
     setTaskRunner(runner);
+    setIsCreatingUnassigned(false);
     setEditingTask(null);
     setTaskForm(emptyTaskForm);
     setTaskError(null);
@@ -389,6 +391,23 @@ export default function DashboardPage() {
       const data = await api<{ documentTypes: Array<{ name: string }> }>(
         "/api/document-types",
       );
+      setDocumentTypes(data.documentTypes.map((item) => item.name));
+    } catch {
+      setDocumentTypes([]);
+    }
+  }
+
+  async function openUnassignedTask() {
+    setTaskRunner(null);
+    setIsCreatingUnassigned(true);
+    setEditingTask(null);
+    setTaskForm(emptyTaskForm);
+    setTaskError(null);
+    setTaskAttachments([]);
+    setExistingTaskAttachments([]);
+    setTaskSubmissionKey(crypto.randomUUID());
+    try {
+      const data = await api<{ documentTypes: Array<{ name: string }> }>("/api/document-types");
       setDocumentTypes(data.documentTypes.map((item) => item.name));
     } catch {
       setDocumentTypes([]);
@@ -488,9 +507,22 @@ export default function DashboardPage() {
     }
   }
 
+  async function assignUnassignedTask(taskId: string, runnerId: string) {
+    if (!runnerId) return;
+    try {
+      const result = await api<{ task: DashboardTask }>(`/api/tasks/${taskId}/dispatch`, {
+        method: "POST",
+        body: JSON.stringify({ runnerId, reason: "Assigned from the unassigned queue" }),
+      });
+      setBoardTasks((current) => current.map((task) => task.id === taskId ? result.task : task));
+    } catch (error: any) {
+      setTaskError(error.message ?? "Could not assign this task");
+    }
+  }
+
   async function saveTask(event: React.FormEvent) {
     event.preventDefault();
-    if (!taskRunner) return;
+    if (!taskRunner && !isCreatingUnassigned) return;
     if (!editingTask && !selectedOperator)
       return setTaskError("Choose a dispatcher workspace before assigning a task.");
     const documents = [
@@ -533,7 +565,7 @@ export default function DashboardPage() {
             body: JSON.stringify(payload),
           })
         : await createTaskWithAttachments(
-            taskRunner.runnerId,
+            taskRunner?.runnerId ?? "unassigned",
             payload,
             taskAttachments,
             taskSubmissionKey ?? crypto.randomUUID(),
@@ -542,10 +574,16 @@ export default function DashboardPage() {
       if (editingTask) {
         for (const file of taskAttachments)
           await uploadTaskAttachment(result.task.id, file);
+      } else {
+        setBoardTasks((current) => [
+          result.task,
+          ...current.filter((task) => task.id !== result.task.id),
+        ]);
       }
       setTaskAttachments([]);
       setTaskSubmissionKey(null);
       setTaskRunner(null);
+      setIsCreatingUnassigned(false);
       setEditingTask(null);
       setTaskTab("active");
     } catch (error: any) {
@@ -582,6 +620,7 @@ export default function DashboardPage() {
 
   function closeTaskForm() {
     setTaskRunner(null);
+    setIsCreatingUnassigned(false);
     setEditingTask(null);
     setTaskSubmissionKey(null);
     setDuePicker(null);
@@ -717,52 +756,48 @@ export default function DashboardPage() {
                   onEdit={openEditTask}
                   onDelete={requestDeleteTask}
                 />
+                <div className="border-t border-border p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold">Location</div>
+                      <p className="mt-0.5 text-xs text-on-surface-variant">{selected?.hasLocation ? "Live location and route" : "Location is unavailable"}</p>
+                    </div>
+                    <button type="button" onClick={() => setIsMapOpen((open) => !open)} className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-surface-variant" aria-expanded={isMapOpen}>
+                      {isMapOpen ? "Hide map" : "View map"}
+                    </button>
+                  </div>
+                  {isMapOpen && <div className="h-[300px] overflow-hidden rounded-2xl border border-border sm:h-[380px] lg:h-[450px]" key={`runner-map-${selectedId ?? "all"}`}>
+                    <RunnerMap runners={runners} selectedId={selectedId} trail={trail} onSelect={(runnerId) => setSelectedId(runnerId || null)} viewerLocation={viewerLocation} compact />
+                  </div>}
+                </div>
               </RunnerDetail>
             </div>
           </Card>
         </div>
 
-        <Card
-          className="order-3 min-w-0 overflow-hidden  border border-border bg-surface shadow-[var(--shadow-card)] lg:flex lg:min-h-0 lg:flex-col"
-          color="default"
-        >
-          <div className="flex items-center justify-between px-5 py-4">
-            <div>
-              <div className="text-sm font-semibold">Location</div>
-              <p className="mt-0.5 text-xs text-on-surface-variant">
-                {selected?.hasLocation
-                  ? "Live location and route"
-                  : "Location is unavailable"}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                setIsMapOpen((open) => !open);
-              }}
-              className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-surface-variant"
-              aria-expanded={isMapOpen}
-              aria-controls="dashboard-runner-map"
-            >
-              {isMapOpen ? "Hide map" : "View map"}
-            </button>
+        <Card className="order-3 min-w-0 overflow-hidden border border-border bg-surface shadow-[var(--shadow-card)] lg:flex lg:min-h-0 lg:flex-col" color="default">
+          <div className="border-b border-border px-5 py-4">
+            <div className="text-sm font-semibold">Create task for the day</div>
+            <p className="mt-0.5 text-xs text-on-surface-variant">Create work now and choose a runner when ready.</p>
+            <button type="button" onClick={openUnassignedTask} className="mt-3 min-h-10 rounded-full bg-accent px-4 text-xs font-semibold text-white shadow-sm hover:bg-[#294b7a]">+ Create task</button>
           </div>
-          {isMapOpen && (
-            <div id="dashboard-runner-map" className="flex min-h-[304px] flex-col border-t border-border p-3 lg:min-h-0 lg:flex-1" key={`runner-map-${selectedId ?? "all"}`}>
-              <div className="h-[280px] min-h-0 lg:h-auto lg:flex-1">
-                <RunnerMap
-                  runners={runners}
-                  selectedId={selectedId}
-                  trail={trail}
-                  onSelect={(runnerId) => setSelectedId(runnerId || null)}
-                  viewerLocation={viewerLocation}
-                  compact
-                />
+          <div className="min-h-0 space-y-2 overflow-y-auto p-3">
+            <div className="px-1 text-xs font-semibold text-on-surface-variant">Unassigned tasks · {boardTasks.filter((task) => task.status === "unassigned").length}</div>
+            {boardTasks.filter((task) => task.status === "unassigned").map((task) => (
+              <div key={task.id} className="rounded-2xl border border-border border-l-4 border-l-slate-500 bg-surface p-3">
+                <div className="flex items-start justify-between gap-2"><div className="min-w-0 truncate text-sm font-semibold text-ink">{task.clientName}</div><span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700">Unassigned</span></div>
+                <p className="mt-1 line-clamp-2 text-xs text-on-surface-variant">{task.clientAddress}</p>
+                <label className="mt-3 block text-xs font-semibold text-ink">Assign to runner
+                  <select defaultValue="" onChange={(event) => assignUnassignedTask(task.id, event.target.value)} className="mt-1 h-10 w-full rounded-xl border border-border bg-surface px-2 text-sm font-normal text-ink">
+                    <option value="" disabled>Select a runner</option>
+                    {Object.values(runners).filter((runner) => runner.assignmentActive !== false).map((runner) => <option key={runner.runnerId} value={runner.runnerId}>{runner.displayName}</option>)}
+                  </select>
+                </label>
+                <div className="mt-3 flex items-center justify-between border-t border-border pt-2 text-[11px]"><span className="font-semibold text-slate-700">Unassigned</span><span className="truncate text-on-surface-variant">Assigned by {task.createdByOperatorName ?? "Unattributed"}</span></div>
               </div>
-            </div>
-          )}
+            ))}
+            {boardTasks.filter((task) => task.status === "unassigned").length === 0 && <p className="px-1 py-5 text-center text-xs text-on-surface-variant">No unassigned tasks right now.</p>}
+          </div>
         </Card>
       </main>
 
@@ -851,7 +886,7 @@ export default function DashboardPage() {
           </form>
         </div>
       )}
-      {taskRunner && (
+      {(taskRunner || isCreatingUnassigned) && (
         <div className="fixed inset-0 z-[1400] flex items-end justify-center overflow-hidden bg-black/60 px-2 pb-[max(8px,env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] sm:items-center sm:p-4">
           <form
             onSubmit={saveTask}
@@ -860,9 +895,9 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5 sm:px-5 sm:py-3">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <h2 className="text-base font-semibold">
-                  {editingTask ? "Edit task for" : "Assign task to"}
+                  {editingTask ? "Edit task for" : isCreatingUnassigned ? "Create task for the day" : "Assign task to"}
                 </h2>
-                <div className="inline-flex max-w-full items-center gap-2 rounded-full bg-surface-variant px-2.5 py-1 text-xs font-medium text-on-surface-variant">
+                {taskRunner && <div className="inline-flex max-w-full items-center gap-2 rounded-full bg-surface-variant px-2.5 py-1 text-xs font-medium text-on-surface-variant">
                   <span
                     className={`h-2 w-2 shrink-0 rounded-full ${getRunnerStatus(taskRunner) === "live" ? "bg-emerald-600" : getRunnerStatus(taskRunner) === "idle" ? "bg-amber-600" : "bg-slate-500"}`}
                   />
@@ -875,6 +910,7 @@ export default function DashboardPage() {
                         : "Offline"}
                   </span>
                 </div>
+                }
               </div>
               <button
                 type="button"
@@ -1294,7 +1330,9 @@ export default function DashboardPage() {
                   ? "Saving…"
                   : editingTask
                     ? "Save task"
-                    : "Assign task"}
+                    : isCreatingUnassigned
+                      ? "Create unassigned task"
+                      : "Assign task"}
               </button>
             </div>
           </form>
