@@ -24,11 +24,18 @@ export function useAvailableTasks() {
   useEffect(() => {
     void refresh();
     const refreshQueue = () => { void refresh(); };
+    const refreshWhenReconnected = (connected: boolean) => {
+      // Events that happened while the phone was reconnecting cannot be
+      // replayed by Socket.IO, so reconcile the shared queue immediately.
+      if (connected) void refresh();
+    };
     socketClient.on('available-task:created', refreshQueue);
     socketClient.on('available-task:claimed', refreshQueue);
+    socketClient.addConnectionListener(refreshWhenReconnected);
     return () => {
       socketClient.off('available-task:created', refreshQueue);
       socketClient.off('available-task:claimed', refreshQueue);
+      socketClient.removeConnectionListener(refreshWhenReconnected);
     };
   }, [refresh]);
 

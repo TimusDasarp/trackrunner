@@ -15,9 +15,11 @@ import { useAuth } from '../hooks/useAuth';
 import { useTracking } from '../hooks/useTracking';
 import { useTasks } from '../hooks/useTasks';
 import { useAvailableTasks } from '../hooks/useAvailableTasks';
+import { runnerTheme } from '../theme/paperTheme';
 import type { RunnerTask } from '../types';
 
 export default function MainScreen() {
+  const colors = runnerTheme.colors;
   const navigation = useNavigation<any>();
   const { user, logout } = useAuth();
   const {
@@ -32,19 +34,19 @@ export default function MainScreen() {
   const { tasks: availableTasks, loading: availableLoading, error: availableError, claimingId, refresh: refreshAvailable, claim } = useAvailableTasks();
   const [taskTab, setTaskTab] = useState<'assigned' | 'available'>('assigned');
   const priorityMeta = (priority?: RunnerTask['priority']) => priority === 'urgent'
-    ? { label: 'URGENT', border: '#DC2626', chip: '#FEE2E2' }
+    ? { label: 'URGENT', border: colors.danger, chip: colors.dangerSoft }
     : priority === 'high'
-      ? { label: 'HIGH', border: '#F59E0B', chip: '#FEF3C7' }
-      : { label: 'NORMAL', border: '#94A3B8', chip: '#F1F5F9' };
+      ? { label: 'HIGH', border: colors.warning, chip: colors.warningSoft }
+      : { label: 'NORMAL', border: colors.brand, chip: colors.brandSoft };
   const prioritizedTasks = [...tasks].sort((a, b) => {
     const rank = (priority?: RunnerTask['priority']) => priority === 'urgent' ? 0 : priority === 'high' ? 1 : 2;
     return rank(a.priority) - rank(b.priority);
   });
   const locationIndicator = isTracking
-    ? { color: '#16A34A', label: 'Location always allowed' }
+    ? { color: colors.success, label: 'Location always allowed' }
     : permissionState === 'foreground_only'
-      ? { color: '#D97706', label: 'Location allowed while the app is open' }
-      : { color: '#64748B', label: 'Location offline' };
+      ? { color: colors.warning, label: 'Location allowed while the app is open' }
+      : { color: colors.muted, label: 'Location offline' };
 
   async function handleLogout() {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
@@ -131,7 +133,8 @@ export default function MainScreen() {
 
   return (
     <ScrollView
-      className="flex-1 bg-slate-50"
+      className="flex-1"
+      style={{ backgroundColor: colors.background }}
       refreshControl={
         <RefreshControl
           refreshing={false}
@@ -141,15 +144,15 @@ export default function MainScreen() {
     >
       <View className="px-6 pt-12 pb-6">
         <View className="flex-row justify-between items-center mb-7">
-          <Text className="text-4xl font-bold text-slate-900">Tasks</Text>
+          <Text className="text-4xl font-bold" style={{ color: colors.text }}>Tasks</Text>
           <IconButton icon="logout" mode="contained" size={24} onPress={handleLogout} accessibilityLabel="Logout" />
         </View>
 
-        <Card mode="contained" style={{ marginBottom: 20 }}>
+        <Card mode="contained" style={{ marginBottom: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.outline }}>
           <Card.Content style={{ gap: 12, paddingVertical: 14 }}>
             <View className="flex-row items-center gap-3">
-              <View className="w-12 h-12 rounded-full bg-blue-100 items-center justify-center">
-                <IconButton icon="run-fast" iconColor="#2563EB" size={24} />
+              <View className="w-12 h-12 rounded-full items-center justify-center" style={{ backgroundColor: colors.brandSoft }}>
+                <IconButton icon="run-fast" iconColor={colors.brand} size={24} />
               </View>
               <View className="flex-1">
                 <Text className="text-sm text-slate-500">Welcome back</Text>
@@ -157,7 +160,7 @@ export default function MainScreen() {
                   <Pressable onPress={!isTracking ? handleEnableBackgroundTracking : undefined} accessibilityRole={!isTracking ? 'button' : 'image'} accessibilityLabel={isTracking ? locationIndicator.label : `${locationIndicator.label}. Tap to enable background location.`} hitSlop={10}>
                     <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: locationIndicator.color }} />
                   </Pressable>
-                  <Text numberOfLines={1} className="flex-1 text-xl font-bold text-slate-900">
+                  <Text numberOfLines={1} className="flex-1 text-xl font-bold" style={{ color: colors.text }}>
                     {user?.displayName || user?.email || 'Runner'}
                   </Text>
                 </View>
@@ -182,12 +185,12 @@ export default function MainScreen() {
           </Card.Content>
         </Card>
 
-        <View className="mb-5 flex-row rounded-2xl bg-slate-200 p-1">
-          <Pressable onPress={() => setTaskTab('assigned')} className={`min-h-11 flex-1 items-center justify-center rounded-xl ${taskTab === 'assigned' ? 'bg-white' : ''}`} accessibilityRole="tab" accessibilityState={{ selected: taskTab === 'assigned' }}>
-            <Text className={`font-semibold ${taskTab === 'assigned' ? 'text-blue-700' : 'text-slate-600'}`}>My tasks</Text>
+        <View className="mb-5 flex-row rounded-2xl p-1" style={{ backgroundColor: colors.surfaceMuted }}>
+          <Pressable onPress={() => setTaskTab('assigned')} className="min-h-11 flex-1 items-center justify-center rounded-xl" style={taskTab === 'assigned' ? { backgroundColor: colors.surface } : undefined} accessibilityRole="tab" accessibilityState={{ selected: taskTab === 'assigned' }}>
+            <Text className="font-semibold" style={{ color: taskTab === 'assigned' ? colors.brand : colors.muted }}>My tasks</Text>
           </Pressable>
-          <Pressable onPress={() => setTaskTab('available')} className={`min-h-11 flex-1 items-center justify-center rounded-xl ${taskTab === 'available' ? 'bg-white' : ''}`} accessibilityRole="tab" accessibilityState={{ selected: taskTab === 'available' }}>
-            <Text className={`font-semibold ${taskTab === 'available' ? 'text-blue-700' : 'text-slate-600'}`}>Available tasks{availableTasks.length ? ` · ${availableTasks.length}` : ''}</Text>
+          <Pressable onPress={() => setTaskTab('available')} className="min-h-11 flex-1 items-center justify-center rounded-xl" style={taskTab === 'available' ? { backgroundColor: colors.surface } : undefined} accessibilityRole="tab" accessibilityState={{ selected: taskTab === 'available' }}>
+            <Text className="font-semibold" style={{ color: taskTab === 'available' ? colors.brand : colors.muted }}>Available tasks{availableTasks.length ? ` · ${availableTasks.length}` : ''}</Text>
           </Pressable>
         </View>
 
@@ -211,7 +214,7 @@ export default function MainScreen() {
                     <Text numberOfLines={2} className="text-xl font-bold text-slate-900">{task.clientName}</Text>
                     <View className="flex-row flex-wrap items-center gap-2">
                       <Chip compact icon="alert-circle" textStyle={{ color: priority.border, fontWeight: '700' }} style={{ backgroundColor: priority.chip }}>{priority.label}</Chip>
-                      <Chip compact icon="send" textStyle={{ color: '#2563EB', fontWeight: '700' }}>{task.status.replace('_', ' ')}</Chip>
+                      <Chip compact icon="send" textStyle={{ color: colors.brand, fontWeight: '700' }} style={{ backgroundColor: colors.brandSoft }}>{task.status.replace('_', ' ')}</Chip>
                     </View>
                   </View>
                   <IconButton icon="chevron-right" size={24} onPress={() => navigation.navigate('TaskDetail', { task })} accessibilityLabel={`Open details for ${task.clientName}`} />
@@ -227,8 +230,8 @@ export default function MainScreen() {
                     <Chip
                       compact
                       icon="account-outline"
-                      style={{ backgroundColor: '#EAF4FF' }}
-                      textStyle={{ color: '#0F4C81', fontWeight: '700' }}
+                      style={{ backgroundColor: colors.brandSoft }}
+                      textStyle={{ color: colors.brand, fontWeight: '700' }}
                     >
                       Assigned by {task.createdByOperatorName}
                     </Chip>
@@ -257,7 +260,7 @@ export default function MainScreen() {
               <Card.Content style={{ gap: 12, paddingTop: 18 }}>
                 <View className="flex-row items-start justify-between gap-2"><Text numberOfLines={2} className="flex-1 text-xl font-bold text-slate-900">{task.clientName}</Text><Chip compact textStyle={{ color: priority.border, fontWeight: '700' }} style={{ backgroundColor: priority.chip }}>{priority.label}</Chip></View>
                 <View className="flex-row items-start gap-2"><IconButton icon="map-marker-outline" size={20} iconColor="#64748B" style={{ margin: 0 }} /><Text numberOfLines={2} className="flex-1 text-base leading-6 text-slate-600">{task.clientAddress}</Text></View>
-                <View className="flex-row flex-wrap gap-2"><Chip compact icon="clock-outline">{task.dueAt ? new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(task.dueAt)) : 'No schedule'}</Chip><Chip compact icon="file-document-outline">0/{task.documents.length} docs</Chip>{task.createdByOperatorName ? <Chip compact icon="account-outline" style={{ backgroundColor: '#EAF4FF' }} textStyle={{ color: '#0F4C81', fontWeight: '700' }}>Assigned by {task.createdByOperatorName}</Chip> : null}</View>
+                <View className="flex-row flex-wrap gap-2"><Chip compact icon="clock-outline">{task.dueAt ? new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(task.dueAt)) : 'No schedule'}</Chip><Chip compact icon="file-document-outline">0/{task.documents.length} docs</Chip>{task.createdByOperatorName ? <Chip compact icon="account-outline" style={{ backgroundColor: colors.brandSoft }} textStyle={{ color: colors.brand, fontWeight: '700' }}>Assigned by {task.createdByOperatorName}</Chip> : null}</View>
                 <Button mode="contained" icon="hand-back-right-outline" contentStyle={{ height: 46 }} loading={claimingId === task.id} disabled={claimingId !== null} onPress={() => confirmClaim(task)}>Take task</Button>
               </Card.Content>
             </Card>;

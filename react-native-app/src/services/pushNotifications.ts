@@ -15,7 +15,9 @@ Notifications.setNotificationHandler({
 
 export async function registerForTaskNotifications(): Promise<void> {
   // The local iOS build uses a free Apple team, which cannot enable APNs.
-  if (Platform.OS === 'ios') return;
+  // TrackRunner currently registers native push devices only on Android.
+  // Returning for every other platform also keeps the API payload truthful.
+  if (Platform.OS !== 'android') return;
 
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('task-assignments', {
@@ -31,8 +33,7 @@ export async function registerForTaskNotifications(): Promise<void> {
 
   const deviceToken = await Notifications.getDevicePushTokenAsync();
   const token = deviceToken.data;
-  const platform = Platform.OS === 'ios' ? 'ios' : 'android';
-  await api.registerPushToken(token, platform, Application.nativeApplicationVersion ?? undefined);
+  await api.registerPushToken(token, 'android', Application.nativeApplicationVersion ?? undefined);
   await SessionStore.savePushToken(token);
 }
 

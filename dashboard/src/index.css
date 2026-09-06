@@ -9,6 +9,8 @@ html, body, #root {
   margin: 0;
 }
 
+*, *::before, *::after { box-sizing: border-box; }
+
 body {
   background: var(--surface-app);
   color: var(--content-primary);
@@ -17,6 +19,11 @@ body {
 }
 
 button, input, select, textarea { font: inherit; }
+
+button, a, input, select, textarea {
+  transition: box-shadow var(--motion-standard), background-color var(--motion-standard),
+    border-color var(--motion-standard), color var(--motion-standard), transform var(--motion-standard);
+}
 
 :focus-visible {
   outline: none;

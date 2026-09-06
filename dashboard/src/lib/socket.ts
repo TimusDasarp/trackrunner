@@ -13,7 +13,10 @@ export function getSocket(): Socket {
   const token = getToken();
   socket = io(apiBaseUrl || undefined, {
     path: "/socket.io",
-    transports: ["websocket", "polling"],
+    // Render proxies can decline an initial WebSocket upgrade. Start with
+    // polling so task events connect reliably, then let Socket.IO upgrade.
+    transports: ["polling", "websocket"],
+    tryAllTransports: true,
     auth: { token },
     reconnection: true,
     reconnectionDelay: 1000,

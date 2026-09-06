@@ -32,6 +32,7 @@ import LocationOnOutlinedIcon from "@mui/icons-material/LocationOnOutlined";
 import ViewListOutlinedIcon from "@mui/icons-material/ViewListOutlined";
 import ViewKanbanOutlinedIcon from "@mui/icons-material/ViewKanbanOutlined";
 import { api } from "../lib/auth";
+import { getSocket } from "../lib/socket";
 import TaskCard from "../components/TaskCard";
 import { useDispatcherSession } from "../lib/dispatcherSession";
 import { useRunners } from "../hooks/useRunners";
@@ -142,6 +143,25 @@ export default function TasksPage() {
 
   useEffect(() => {
     void loadWorkspace();
+  }, [loadWorkspace]);
+
+  useEffect(() => {
+    const socket = getSocket();
+    let refreshTimer: number | undefined;
+    const refreshAfterTaskChange = () => {
+      // A short coalesce window handles a related pair of events (for example,
+      // a runner claiming a shared task) with one authoritative API refresh.
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => void loadWorkspace(), 80);
+    };
+
+    socket.on("task:created", refreshAfterTaskChange);
+    socket.on("task:updated", refreshAfterTaskChange);
+    return () => {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      socket.off("task:created", refreshAfterTaskChange);
+      socket.off("task:updated", refreshAfterTaskChange);
+    };
   }, [loadWorkspace]);
 
   useEffect(() => {

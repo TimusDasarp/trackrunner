@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Box,
   Button,
@@ -23,6 +23,7 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "../lib/auth";
+import { getSocket } from "../lib/socket";
 
 type Overview = {
   totals: {
@@ -109,11 +110,27 @@ function duration(seconds: number | null) {
 export default function AnalyticsPage() {
   const [data, setData] = useState<Overview | null>(null);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
-  useEffect(() => {
-    api<Overview>("/api/analytics/overview?days=7")
+
+  const loadAnalytics = useCallback(() => {
+    return api<Overview>("/api/analytics/overview?days=7")
       .then(setData)
       .catch(() => setData(null));
   }, []);
+
+  useEffect(() => {
+    void loadAnalytics();
+  }, [loadAnalytics]);
+
+  useEffect(() => {
+    const socket = getSocket();
+    const refreshAfterTaskChange = () => void loadAnalytics();
+    socket.on("task:created", refreshAfterTaskChange);
+    socket.on("task:updated", refreshAfterTaskChange);
+    return () => {
+      socket.off("task:created", refreshAfterTaskChange);
+      socket.off("task:updated", refreshAfterTaskChange);
+    };
+  }, [loadAnalytics]);
 
   const totals = data?.totals;
   const cards = [

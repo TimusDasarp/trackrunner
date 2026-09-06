@@ -199,12 +199,17 @@ async function removeStoredFiles(paths: string[]) {
 
 function publishCreatedTask(req: any, task: any, runnerId: string) {
   req.app.get("io").to(`runner:${runnerId}`).emit("task:created", task);
-  req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${runnerId}`).emit("task:created", task);
+  req.app.get("io").to(`dispatchers:${req.user.organizationId}`).emit("task:created", task);
   void pool.query("SELECT token FROM runner_push_devices WHERE runner_id = $1 AND active = true AND permission_granted = true", [runnerId])
     .then(({ rows: devices }) => sendTaskAssignmentPush(devices.map((device) => device.token), task).then(async (invalidTokens) => {
       if (invalidTokens.length > 0) await pool.query("UPDATE runner_push_devices SET active = false, updated_at = now() WHERE token = ANY($1)", [invalidTokens]);
     }))
     .catch((pushError) => console.error("Failed to send task-assignment push", pushError));
+}
+
+/** Broadcast task changes to every dispatcher dashboard in the organisation. */
+function publishTaskUpdate(req: any, task: any) {
+  req.app.get("io").to(`dispatchers:${req.user.organizationId}`).emit("task:updated", task);
 }
 
 apiRouter.put("/devices/push-token", requireUser, async (req: any, res) => {
@@ -553,7 +558,10 @@ apiRouter.post("/runners/:id/tasks/with-attachments", requireDispatcher, (req: a
     await client.query("COMMIT");
     committed = true;
     const task = await getTask(taskId, String(req.user.organizationId));
-    if (isUnassigned) req.app.get("io").to(`runners:${req.user.organizationId}`).emit("available-task:created", task);
+    if (isUnassigned) {
+      req.app.get("io").to(`runners:${req.user.organizationId}`).emit("available-task:created", task);
+      req.app.get("io").to(`dispatchers:${req.user.organizationId}`).emit("task:created", task);
+    }
     else publishCreatedTask(req, task, runnerId);
     res.status(201).json({ task });
   } catch (error) {
@@ -587,8 +595,7 @@ apiRouter.post("/runners/:id/tasks", requireDispatcher, async (req: any, res) =>
     await client.query("COMMIT");
     await recordTaskEvent(req.user.organizationId, String(rows[0].id), req.user.sub, "created", { priority: parsed.data.priority, dueAt: parsed.data.dueAt ?? null, operatorId: operator.id, operatorName: operator.display_name });
     const task = await getTask(String(rows[0].id), String(req.user.organizationId));
-    req.app.get("io").to(`runner:${runnerId}`).emit("task:created", task);
-    req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${runnerId}`).emit("task:created", task);
+    publishCreatedTask(req, task, runnerId);
     const { rows: devices } = await pool.query(
       "SELECT token FROM runner_push_devices WHERE runner_id = $1 AND active = true AND permission_granted = true",
       [runnerId]
@@ -658,7 +665,7 @@ apiRouter.post("/available-tasks/:id/claim", requireUser, async (req: any, res) 
   if (!task) return res.status(404).json({ error: "task not found" });
   await recordTaskEvent(req.user.organizationId, String(rows[0].id), req.user.sub, "claimed", {});
   req.app.get("io").to(`runner:${req.user.sub}`).emit("task:created", task);
-  req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${req.user.sub}`).emit("task:updated", task);
+  publishTaskUpdate(req, task);
   req.app.get("io").to(`runners:${req.user.organizationId}`).emit("available-task:claimed", { id: task.id });
   res.json({ task });
 });
@@ -762,8 +769,7 @@ apiRouter.post("/tasks/:id/dispatch", requireDispatcher, async (req: any, res) =
   // allowing their client to remove it during its normal task reconciliation.
   if (task.runnerId) req.app.get("io").to(`runner:${task.runnerId}`).emit("task:updated", updated);
   req.app.get("io").to(`runner:${nextRunnerId}`).emit("task:updated", updated);
-  if (task.runnerId) req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${task.runnerId}`).emit("task:updated", updated);
-  req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${nextRunnerId}`).emit("task:updated", updated);
+  publishTaskUpdate(req, updated);
   res.json({ task: updated });
 });
 
@@ -788,7 +794,7 @@ apiRouter.patch("/tasks/:id", requireUser, async (req: any, res) => {
     const updated = await getTask(String(req.params.id), String(req.user.organizationId));
     await recordTaskEvent(req.user.organizationId, String(req.params.id), req.user.sub, "edited");
     req.app.get("io").to(`runner:${updated!.runnerId}`).emit("task:updated", updated);
-    req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${updated!.runnerId}`).emit("task:updated", updated);
+    publishTaskUpdate(req, updated);
     return res.json({ task: updated });
   }
   if (req.user.role !== "runner") return res.status(403).json({ error: "forbidden" });
@@ -802,7 +808,7 @@ apiRouter.patch("/tasks/:id", requireUser, async (req: any, res) => {
   const updated = await getTask(task.id, String(req.user.organizationId));
   await recordTaskEvent(req.user.organizationId, task.id, String(req.user.sub), parsed.data.status);
   req.app.get("io").to(`runner:${task.runnerId}`).emit("task:updated", updated);
-  req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${task.runnerId}`).emit("task:updated", updated);
+  publishTaskUpdate(req, updated);
   res.json({ task: updated });
 });
 

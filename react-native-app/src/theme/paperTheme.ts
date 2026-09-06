@@ -1,21 +1,12 @@
 import { MD3LightTheme } from 'react-native-paper';
 
-/** Shared runner-app tokens used by the task dashboard. */
+/** Shared TrackRunner roles for the mobile field workspace. */
 export const runnerTheme = {
   colors: {
-    background: '#050908',
-    surface: '#0D151C',
-    surfaceRaised: '#111B24',
-    outline: '#263B4C',
-    text: '#F8FAFC',
-    muted: '#9AA7B8',
-    blue: '#1496FF',
-    green: '#2DE26D',
-    greenSurface: '#0F2D23',
-    urgent: '#FF4D5B',
-    urgentSurface: '#261719',
-    high: '#F4B740',
-    pill: '#252A32',
+    background: '#FAF5F1', surface: '#FFFFFF', surfaceMuted: '#F3F0ED', outline: '#E5E1DC',
+    text: '#102038', muted: '#5E6A69', brand: '#003766', brandSoft: '#E8F0F6', accent: '#FF7F5A',
+    success: '#1F7A5A', successSoft: '#E6F4EF', warning: '#9A5A14', warningSoft: '#FFF1DC',
+    danger: '#B8432B', dangerSoft: '#FDE9E4',
   },
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
   radius: { sm: 10, md: 16, lg: 22, pill: 999 },
@@ -26,12 +17,12 @@ export const paperTheme = {
   roundness: 3,
   colors: {
     ...MD3LightTheme.colors,
-    primary: '#2563EB',
-    secondary: '#475569',
-    tertiary: '#0F766E',
+    primary: '#003766',
+    secondary: '#5E6A69',
+    tertiary: '#1F7A5A',
     surface: '#FFFFFF',
     surfaceVariant: '#F1F5F9',
-    background: '#F8FAFC',
-    error: '#B91C1C',
+    background: '#FAF5F1',
+    error: '#B8432B',
   },
 };

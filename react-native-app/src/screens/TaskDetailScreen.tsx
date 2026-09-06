@@ -6,6 +6,7 @@ import { ActivityIndicator, Button, Card, Chip, IconButton, Modal, Portal, Radio
 import { useTasks } from '../hooks/useTasks';
 import { api } from '../services/api';
 import type { IncompleteReason, RunnerTask, TaskAttachment } from '../types';
+import { runnerTheme } from '../theme/paperTheme';
 
 const incompleteReasonOptions: Array<{ value: IncompleteReason; label: string }> = [
   { value: 'client_unavailable', label: 'Client unavailable' },
@@ -19,6 +20,7 @@ const incompleteReasonOptions: Array<{ value: IncompleteReason; label: string }>
 ];
 
 export default function TaskDetailScreen() {
+  const colors = runnerTheme.colors;
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const [task, setTask] = useState<RunnerTask>(route.params.task);
@@ -136,13 +138,13 @@ export default function TaskDetailScreen() {
   const canUpdateStatus = task.status !== 'completed' && task.status !== 'unable_to_complete';
 
   return (
-    <ScrollView className="flex-1 bg-slate-50" contentContainerStyle={{ padding: 24, paddingTop: 48, gap: 18 }}>
+    <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerStyle={{ padding: 24, paddingTop: 48, gap: 18 }}>
       <View className="flex-row items-center gap-3 mb-1">
         <IconButton icon="arrow-left" mode="contained" onPress={() => navigation.goBack()} accessibilityLabel="Back to tasks" />
         <Text className="text-3xl font-bold text-slate-900 flex-1" numberOfLines={1}>Task details</Text>
       </View>
 
-      <Card mode="elevated" style={{ borderLeftWidth: 7, borderLeftColor: priority.color }}>
+      <Card mode="elevated" style={{ borderLeftWidth: 7, borderLeftColor: priority.color, borderWidth: 1, borderColor: colors.outline }}>
         <Card.Content style={{ gap: 15, paddingVertical: 20 }}>
           <View className="flex-row flex-wrap items-center gap-2">
             <Chip compact icon="alert-circle" textStyle={{ color: priority.color, fontWeight: '700' }} style={{ backgroundColor: priority.surface }}>{priority.label}</Chip>
@@ -229,7 +231,7 @@ function formatFileSize(bytes: number) {
 }
 
 function priorityMeta(priority?: RunnerTask['priority']) {
-  if (priority === 'urgent') return { label: 'Urgent', color: '#DC2626', surface: '#FEE2E2' };
-  if (priority === 'high') return { label: 'High', color: '#B45309', surface: '#FEF3C7' };
-  return { label: 'Normal', color: '#2563EB', surface: '#DBEAFE' };
+  if (priority === 'urgent') return { label: 'Urgent', color: runnerTheme.colors.danger, surface: runnerTheme.colors.dangerSoft };
+  if (priority === 'high') return { label: 'High', color: runnerTheme.colors.warning, surface: runnerTheme.colors.warningSoft };
+  return { label: 'Normal', color: runnerTheme.colors.brand, surface: runnerTheme.colors.brandSoft };
 }

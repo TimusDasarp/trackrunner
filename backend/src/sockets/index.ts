@@ -68,6 +68,11 @@ export function attachSockets(io: Server) {
       // eslint-disable-next-line no-console
       console.log(`[ws] runner connected user=${userId} sid=${s.id}`);
     } else {
+      // Task activity belongs to the whole dispatch operation, not only to
+      // the dispatcher who is currently mapped to a runner. This room keeps
+      // every open dashboard in the organisation in sync as work is assigned,
+      // claimed, reassigned, or completed from another device.
+      s.join(`dispatchers:${organizationId}`);
       const { rows: assignments } = await pool.query(
         `SELECT runner_id FROM runner_assignments
          WHERE dispatcher_id = $1 AND organization_id = $2 AND active = true`,

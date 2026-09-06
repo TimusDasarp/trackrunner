@@ -38,7 +38,7 @@ function AppShellContent() {
         position="sticky"
         elevation={0}
         sx={{
-          bgcolor: "rgba(255,255,255,.92)",
+          bgcolor: "rgba(252,252,252,.94)",
           color: "text.primary",
           borderBottom: "1px solid",
           borderColor: "divider",
@@ -92,8 +92,8 @@ function AppShellContent() {
                   px: 0.8,
                   py: 0.15,
                   borderRadius: 99,
-                  bgcolor: connected ? "#e6f4ef" : "#fff1dc",
-                  color: connected ? "#1f7a5a" : "#9a5a14",
+                  bgcolor: connected ? "var(--status-success-bg)" : "var(--status-warning-bg)",
+                  color: connected ? "var(--status-success)" : "var(--status-warning)",
                   fontWeight: 700,
                 }}
               >
@@ -133,7 +133,7 @@ function AppShellContent() {
                 onClick={openSelector}
                 size="small"
                 color="inherit"
-                sx={{ display: { xs: "none", sm: "inline-flex" }, minHeight: 32, minWidth: 0, mr: 0, px: 1.1, borderRadius: 99, bgcolor: "#e6f4ef", color: "#1f6b50", fontWeight: 750, textTransform: "none", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                sx={{ display: { xs: "none", sm: "inline-flex" }, minHeight: 32, minWidth: 0, mr: 0, px: 1.1, borderRadius: 99, bgcolor: "var(--status-success-bg)", color: "var(--status-success)", fontWeight: 750, textTransform: "none", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
               >
                 {selectedOperator.displayName}'s workspace
               </Button>
@@ -142,7 +142,7 @@ function AppShellContent() {
                 aria-describedby={workspacePopoverOpen ? "dispatcher-workspace-popover" : undefined}
                 onClick={(event) => setWorkspaceAnchor(event.currentTarget)}
                 size="small"
-                sx={{ display: { xs: "inline-flex", sm: "none" }, width: 36, height: 36, bgcolor: "#e6f4ef", color: "#1f6b50", "&:hover": { bgcolor: "#d6eee4" } }}
+                sx={{ display: { xs: "inline-flex", sm: "none" }, width: 36, height: 36, bgcolor: "var(--status-success-bg)", color: "var(--status-success)", "&:hover": { bgcolor: "#d6eee4" } }}
               >
                 <WorkOutlineIcon fontSize="small" />
               </IconButton>

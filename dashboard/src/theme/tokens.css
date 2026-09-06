@@ -25,6 +25,12 @@
   --status-danger: #b8432b;
   --status-danger-bg: #fde9e4;
 
+  /* Shared visual rhythm for Tailwind and Material UI components. */
+  --radius-control: 10px;
+  --radius-card: 14px;
+  --radius-panel: 18px;
   --shadow-card: 0 8px 24px rgb(16 32 56 / 0.06);
+  --shadow-card-hover: 0 12px 30px rgb(16 32 56 / 0.1);
   --focus-ring: 0 0 0 3px rgb(255 127 90 / 0.28);
+  --motion-standard: 160ms ease-out;
 }

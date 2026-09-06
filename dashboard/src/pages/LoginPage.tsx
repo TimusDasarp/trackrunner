@@ -35,12 +35,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top_left,_#dce6ff,_#f8f7ff_45%,_#eef3ff)] p-5">
-      <Card className="w-full max-w-sm rounded-[28px] bg-white/90 p-8 shadow-[0_20px_60px_rgba(40,55,82,.18)]" color="default">
+    <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top_left,_#e8f0f6,_#faf5f1_48%,_#f3f0ed)] p-5">
+      <Card className="w-full max-w-sm rounded-[24px] border border-[#e5e1dc] bg-white/95 p-8 shadow-[0_20px_60px_rgba(16,32,56,.14)]" color="default">
       <form onSubmit={submit}>
-        <div className="mb-7 flex items-center gap-3"><div className="grid h-12 w-12 place-items-center rounded-2xl bg-accent text-xl text-white">↗</div><div><h1 className="text-2xl font-semibold text-ink">TrackRunner</h1><p className="text-on-surface-variant text-sm">Dispatcher workspace</p></div></div>
+        <div className="mb-7 flex items-center gap-3"><div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#003766] text-xl text-white">↗</div><div><h1 className="text-2xl font-semibold text-[#102038]">TrackRunner</h1><p className="text-[#5e6a69] text-sm">Dispatcher workspace</p></div></div>
 
-        <label className="block text-sm text-slate-300 mb-1">Email</label>
+        <label className="block text-sm font-medium text-[#102038] mb-1">Email</label>
         <Input
           className="w-full mb-4"
           value={email}
@@ -51,7 +51,7 @@ export default function LoginPage() {
           required
         />
 
-        <label className="block text-sm text-slate-300 mb-1">Password</label>
+        <label className="block text-sm font-medium text-[#102038] mb-1">Password</label>
         <Input
           className="w-full mb-4"
           value={password}
@@ -66,7 +66,7 @@ export default function LoginPage() {
 
         <Button
           disabled={busy}
-          className="mt-2 w-full rounded-full bg-accent text-white disabled:opacity-50"
+          className="mt-2 w-full rounded-xl bg-[#003766] text-white disabled:opacity-50"
         >
           {busy ? "Signing in..." : "Sign in"}
         </Button>
