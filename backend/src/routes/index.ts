@@ -553,7 +553,8 @@ apiRouter.post("/runners/:id/tasks/with-attachments", requireDispatcher, (req: a
     await client.query("COMMIT");
     committed = true;
     const task = await getTask(taskId, String(req.user.organizationId));
-    if (!isUnassigned) publishCreatedTask(req, task, runnerId);
+    if (isUnassigned) req.app.get("io").to(`runners:${req.user.organizationId}`).emit("available-task:created", task);
+    else publishCreatedTask(req, task, runnerId);
     res.status(201).json({ task });
   } catch (error) {
     if (!committed) {
@@ -618,6 +619,48 @@ apiRouter.get("/tasks", requireUser, async (req: any, res) => {
   const { rows } = await pool.query(`SELECT * FROM runner_tasks WHERE organization_id = $1 ${runnerFilter} ${statusFilter} ORDER BY COALESCE(completed_at, created_at) DESC`, params);
   const tasks = await Promise.all(rows.map((row) => getTask(String(row.id), String(req.user.organizationId))));
   res.json({ tasks });
+});
+
+// Unassigned work is a shared pool for runners. The query intentionally exposes
+// only tasks that have no runner, while the claim update below is the single
+// authority that decides who gets a task when two runners act at once.
+apiRouter.get("/available-tasks", requireUser, async (req: any, res) => {
+  if (req.user.role !== "runner") return res.status(403).json({ error: "forbidden" });
+  const { rows } = await pool.query(
+    `SELECT * FROM runner_tasks
+     WHERE organization_id = $1 AND runner_id IS NULL AND status = 'unassigned'
+     ORDER BY priority DESC, due_at NULLS LAST, created_at ASC`,
+    [req.user.organizationId],
+  );
+  const tasks = await Promise.all(rows.map((row) => getTask(String(row.id), String(req.user.organizationId))));
+  res.json({ tasks });
+});
+
+apiRouter.post("/available-tasks/:id/claim", requireUser, async (req: any, res) => {
+  if (req.user.role !== "runner") return res.status(403).json({ error: "forbidden" });
+
+  // The status and NULL runner check make this compare-and-set update atomic.
+  // Exactly one runner can claim a task; every later request receives a useful
+  // conflict response instead of overwriting the first claim.
+  const { rows } = await pool.query(
+    `UPDATE runner_tasks
+     SET runner_id = $1, status = 'sent'
+     WHERE id = $2 AND organization_id = $3
+       AND runner_id IS NULL AND status = 'unassigned'
+     RETURNING id`,
+    [req.user.sub, req.params.id, req.user.organizationId],
+  );
+  if (!rows[0]) {
+    return res.status(409).json({ error: "This task was just taken by another runner." });
+  }
+
+  const task = await getTask(String(rows[0].id), String(req.user.organizationId));
+  if (!task) return res.status(404).json({ error: "task not found" });
+  await recordTaskEvent(req.user.organizationId, String(rows[0].id), req.user.sub, "claimed", {});
+  req.app.get("io").to(`runner:${req.user.sub}`).emit("task:created", task);
+  req.app.get("io").to(`dispatchers:${req.user.organizationId}:runner:${req.user.sub}`).emit("task:updated", task);
+  req.app.get("io").to(`runners:${req.user.organizationId}`).emit("available-task:claimed", { id: task.id });
+  res.json({ task });
 });
 
 apiRouter.get("/tasks/:id/attachments", requireUser, async (req: any, res) => {

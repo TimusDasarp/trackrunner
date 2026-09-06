@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,12 @@ import {
   ScrollView,
   RefreshControl,
 } from 'react-native';
-import { ActivityIndicator, Card, Chip, IconButton } from 'react-native-paper';
+import { ActivityIndicator, Button, Card, Chip, IconButton } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../hooks/useAuth';
 import { useTracking } from '../hooks/useTracking';
 import { useTasks } from '../hooks/useTasks';
+import { useAvailableTasks } from '../hooks/useAvailableTasks';
 import type { RunnerTask } from '../types';
 
 export default function MainScreen() {
@@ -28,6 +29,8 @@ export default function MainScreen() {
     refreshPendingCount,
   } = useTracking();
   const { tasks, loading: tasksLoading, error: tasksError, refresh: refreshTasks } = useTasks();
+  const { tasks: availableTasks, loading: availableLoading, error: availableError, claimingId, refresh: refreshAvailable, claim } = useAvailableTasks();
+  const [taskTab, setTaskTab] = useState<'assigned' | 'available'>('assigned');
   const priorityMeta = (priority?: RunnerTask['priority']) => priority === 'urgent'
     ? { label: 'URGENT', border: '#DC2626', chip: '#FEE2E2' }
     : priority === 'high'
@@ -102,13 +105,37 @@ export default function MainScreen() {
     }
   }
 
+  function confirmClaim(task: RunnerTask) {
+    Alert.alert(
+      'Take this task?',
+      'This will assign the task to you and add it to My tasks.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Take task',
+          onPress: () => {
+            void claim(task)
+              .then(() => {
+                setTaskTab('assigned');
+                void refreshTasks();
+              })
+              .catch((error) => {
+                Alert.alert('Task unavailable', error instanceof Error ? error.message : 'This task was just taken by another runner.');
+                void refreshAvailable();
+              });
+          },
+        },
+      ],
+    );
+  }
+
   return (
     <ScrollView
       className="flex-1 bg-slate-50"
       refreshControl={
         <RefreshControl
           refreshing={false}
-          onRefresh={() => { refreshPendingCount(); refreshTasks(); }}
+          onRefresh={() => { refreshPendingCount(); void refreshTasks(); void refreshAvailable(); }}
         />
       }
     >
@@ -155,7 +182,17 @@ export default function MainScreen() {
           </Card.Content>
         </Card>
 
+        <View className="mb-5 flex-row rounded-2xl bg-slate-200 p-1">
+          <Pressable onPress={() => setTaskTab('assigned')} className={`min-h-11 flex-1 items-center justify-center rounded-xl ${taskTab === 'assigned' ? 'bg-white' : ''}`} accessibilityRole="tab" accessibilityState={{ selected: taskTab === 'assigned' }}>
+            <Text className={`font-semibold ${taskTab === 'assigned' ? 'text-blue-700' : 'text-slate-600'}`}>My tasks</Text>
+          </Pressable>
+          <Pressable onPress={() => setTaskTab('available')} className={`min-h-11 flex-1 items-center justify-center rounded-xl ${taskTab === 'available' ? 'bg-white' : ''}`} accessibilityRole="tab" accessibilityState={{ selected: taskTab === 'available' }}>
+            <Text className={`font-semibold ${taskTab === 'available' ? 'text-blue-700' : 'text-slate-600'}`}>Available tasks{availableTasks.length ? ` · ${availableTasks.length}` : ''}</Text>
+          </Pressable>
+        </View>
+
         {/* Live dispatcher tasks */}
+        {taskTab === 'assigned' &&
         <View className="mb-6">
           <View className="mb-2">
             <Text className="text-sm font-medium text-slate-500">ASSIGNED TASKS</Text>
@@ -203,6 +240,29 @@ export default function MainScreen() {
             </Card>;
           })}
         </View>
+        }
+
+        {taskTab === 'available' && <View className="mb-6">
+          <View className="mb-2">
+            <Text className="text-sm font-medium text-slate-500">AVAILABLE TASKS</Text>
+            <Text className="mt-1 text-sm text-slate-600">Choose work that you can complete today.</Text>
+          </View>
+          {availableLoading ? <ActivityIndicator /> : availableError ? (
+            <Card mode="contained" style={{ backgroundColor: '#FEF2F2' }}><Card.Content><Text className="text-red-700">Could not load available tasks: {availableError}</Text></Card.Content></Card>
+          ) : availableTasks.length === 0 ? (
+            <Card mode="contained"><Card.Content><Text className="text-slate-500">No unassigned tasks are available right now.</Text></Card.Content></Card>
+          ) : availableTasks.map((task) => {
+            const priority = priorityMeta(task.priority);
+            return <Card key={task.id} mode="elevated" style={{ marginBottom: 14, borderLeftWidth: 7, borderLeftColor: priority.border, overflow: 'hidden' }}>
+              <Card.Content style={{ gap: 12, paddingTop: 18 }}>
+                <View className="flex-row items-start justify-between gap-2"><Text numberOfLines={2} className="flex-1 text-xl font-bold text-slate-900">{task.clientName}</Text><Chip compact textStyle={{ color: priority.border, fontWeight: '700' }} style={{ backgroundColor: priority.chip }}>{priority.label}</Chip></View>
+                <View className="flex-row items-start gap-2"><IconButton icon="map-marker-outline" size={20} iconColor="#64748B" style={{ margin: 0 }} /><Text numberOfLines={2} className="flex-1 text-base leading-6 text-slate-600">{task.clientAddress}</Text></View>
+                <View className="flex-row flex-wrap gap-2"><Chip compact icon="clock-outline">{task.dueAt ? new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(task.dueAt)) : 'No schedule'}</Chip><Chip compact icon="file-document-outline">0/{task.documents.length} docs</Chip>{task.createdByOperatorName ? <Chip compact icon="account-outline" style={{ backgroundColor: '#EAF4FF' }} textStyle={{ color: '#0F4C81', fontWeight: '700' }}>Assigned by {task.createdByOperatorName}</Chip> : null}</View>
+                <Button mode="contained" icon="hand-back-right-outline" contentStyle={{ height: 46 }} loading={claimingId === task.id} disabled={claimingId !== null} onPress={() => confirmClaim(task)}>Take task</Button>
+              </Card.Content>
+            </Card>;
+          })}
+        </View>}
 
       </View>
     </ScrollView>

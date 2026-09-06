@@ -63,6 +63,7 @@ export function attachSockets(io: Server) {
     // Runners join a private room; dispatchers join the dashboard room.
     if (role === "runner") {
       s.join(`runner:${userId}`);
+      s.join(`runners:${organizationId}`);
       markOnline(userId).catch(() => {});
       // eslint-disable-next-line no-console
       console.log(`[ws] runner connected user=${userId} sid=${s.id}`);

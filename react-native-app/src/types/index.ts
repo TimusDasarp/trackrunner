@@ -45,7 +45,7 @@ export interface TrackingState {
   pendingCount: number;
 }
 
-export type TaskStatus = 'sent' | 'acknowledged' | 'in_progress' | 'completed' | 'unable_to_complete';
+export type TaskStatus = 'unassigned' | 'sent' | 'acknowledged' | 'in_progress' | 'completed' | 'unable_to_complete';
 export type IncompleteReason =
   | 'client_unavailable'
   | 'client_requested_reschedule'
@@ -65,5 +65,5 @@ export interface TaskAttachment {
 }
 export interface RunnerTask {
   id: string; runnerId: string; createdByOperatorId?: string | null; createdByOperatorName?: string | null; clientName: string; clientAddress: string; clientPhone: string;
-  notes?: string | null; destinationLat?: number | null; destinationLon?: number | null; priority?: 'normal' | 'high' | 'urgent' | 'low'; status: TaskStatus; createdAt: string; incompleteReason?: IncompleteReason | null; incompleteNote?: string | null; documents: RunnerTaskDocument[];
+  notes?: string | null; destinationLat?: number | null; destinationLon?: number | null; priority?: 'normal' | 'high' | 'urgent' | 'low'; dueAt?: string | null; status: TaskStatus; createdAt: string; incompleteReason?: IncompleteReason | null; incompleteNote?: string | null; documents: RunnerTaskDocument[];
 }

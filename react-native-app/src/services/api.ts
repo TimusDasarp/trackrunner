@@ -63,6 +63,18 @@ class ApiClient {
     return response.tasks ?? [];
   }
 
+  async getAvailableTasks(): Promise<RunnerTask[]> {
+    const response = await request<{ tasks: RunnerTask[] }>('/available-tasks');
+    return response.tasks ?? [];
+  }
+
+  async claimAvailableTask(id: string): Promise<RunnerTask> {
+    const response = await request<{ task: RunnerTask }>(`/available-tasks/${id}/claim`, {
+      method: 'POST',
+    });
+    return response.task;
+  }
+
   async updateTask(id: string, status: TaskStatus, documents?: Array<{ id: string; collected: boolean }>, incomplete?: { reason: IncompleteReason; note?: string }): Promise<RunnerTask> {
     const response = await request<{ task: RunnerTask }>(`/tasks/${id}`, {
       method: 'PATCH', body: JSON.stringify({ status, documents, incompleteReason: incomplete?.reason, incompleteNote: incomplete?.note }),
